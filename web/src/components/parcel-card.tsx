@@ -32,7 +32,7 @@ export function ParcelCard({
           pills={[
             { label: "Area", value: `${formatAcres(p.areaAcres)} ac`, at: { x: 0.19, y: 0.13 } },
             ...(p.distanceM != null
-              ? [{ label: "Away", value: formatDistance(p.distanceM), at: { x: 0.81, y: 0.13 } } as const]
+              ? [{ label: "Away", value: formatDistance(p.distanceM), at: { x: 0.78, y: 0.13 } } as const]
               : []),
           ]}
         />
