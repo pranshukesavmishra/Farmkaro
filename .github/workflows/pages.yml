@@ -32,6 +32,7 @@ jobs:
       - run: npx next build
         env:
           STATIC_EXPORT: "1"
+          NEXT_PUBLIC_STATIC: "1"
           NEXT_PUBLIC_BASE_PATH: /Farmkaro
       - run: touch out/.nojekyll
       - uses: peaceiris/actions-gh-pages@v4

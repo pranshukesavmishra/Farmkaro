@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
+import { AuthProvider } from "@/components/auth-context";
 import { SampleDataBanner } from "@/components/sample-data-banner";
 
 export const metadata: Metadata = {
@@ -43,9 +44,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <style>{`:root{--font-sans:"Instrument Sans",system-ui,sans-serif;--font-mono:"IBM Plex Mono",ui-monospace,monospace}`}</style>
       </head>
       <body className="min-h-screen antialiased">
-        <SampleDataBanner />
-        <SiteHeader />
-        <main>{children}</main>
+        <AuthProvider>
+          <SampleDataBanner />
+          <SiteHeader />
+          <main>{children}</main>
+        </AuthProvider>
       </body>
     </html>
   );

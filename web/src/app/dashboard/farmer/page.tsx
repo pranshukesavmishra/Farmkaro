@@ -5,6 +5,7 @@ import { ParcelOverlayCard } from "@/components/parcel-overlay-card";
 import { ParcelCard } from "@/components/parcel-card";
 import { MatchScore } from "@/components/match-score";
 import { Badge, EmptyState, Section } from "@/components/ui";
+import { LiveDeals } from "@/components/live-deals";
 import { getRepository } from "@/lib/repo";
 import { JABALPUR } from "@/lib/seed";
 import { formatAcres, formatINR } from "@/lib/geo";
@@ -66,6 +67,10 @@ export default async function FarmerDashboardPage() {
         <p className="mt-1.5 text-[14.5px] muted">
           Land matched to your preferences, your leases and your payment schedule.
         </p>
+      </div>
+
+      <div className="mt-6">
+        <LiveDeals mode="farmer" />
       </div>
 
       <Section

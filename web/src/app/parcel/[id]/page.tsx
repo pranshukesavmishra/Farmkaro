@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { CalendarClock, MessageSquare } from "lucide-react";
 import { ParcelOverlayCard, SatelliteAttribution } from "@/components/parcel-overlay-card";
+import { ParcelActions } from "@/components/parcel-actions";
 import {
   DocumentList,
   GeometryLadder,
@@ -163,27 +163,13 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
             <p className="mt-1 text-[13px] muted">
               {formatINR(p.listing.rentPerAcre)}/acre · deposit {formatINR(p.listing.deposit)}
             </p>
-            <div className="mt-4 grid gap-2">
-              <a
-                href="#"
-                aria-disabled="true"
-                title="Coming in the pilot"
-                className="focus-ring flex items-center justify-center gap-2 rounded-xl bg-forest-900 px-4 py-3 text-[14px] font-semibold text-white opacity-80 dark:bg-forest-500"
-              >
-                <MessageSquare className="h-4 w-4" aria-hidden /> Send enquiry
-              </a>
-              <a
-                href="#"
-                aria-disabled="true"
-                title="Coming in the pilot"
-                className="surface focus-ring flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-[14px] font-semibold opacity-80"
-              >
-                <CalendarClock className="h-4 w-4" aria-hidden /> Request a visit
-              </a>
+            <div className="mt-4">
+              <ParcelActions
+                parcelId={p.id}
+                rentAnnual={p.listing.rentAnnual}
+                village={p.village}
+              />
             </div>
-            <p className="mt-2.5 text-center text-[11.5px] muted">
-              Enquiries and visits open with the Jabalpur pilot.
-            </p>
           </div>
 
           {/* Owner */}

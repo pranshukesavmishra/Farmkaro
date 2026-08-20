@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ParcelOverlayCard } from "@/components/parcel-overlay-card";
 import { Badge, Section, StatTile } from "@/components/ui";
+import { LiveDeals } from "@/components/live-deals";
+import { ClaimOwner } from "@/components/claim-owner";
 import { getRepository } from "@/lib/repo";
 import { formatAcres, formatINR } from "@/lib/geo";
 import { GEOMETRY_LABEL, REGISTRATION_LABEL, type Lease } from "@/lib/types";
@@ -63,6 +65,8 @@ export default async function OwnerDashboardPage() {
         </p>
       </div>
 
+      <ClaimOwner />
+      <LiveDeals mode="owner" />
       <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile label="Total parcels" value={String(parcels.length)} />
         <StatTile label="Active listings" value={String(activeListings)} tone="accent" />

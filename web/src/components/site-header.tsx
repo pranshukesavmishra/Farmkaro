@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ThemeToggle } from "./theme-toggle";
+import { UserMenu } from "./user-menu";
 import { Sprout } from "lucide-react";
 
 const NAV = [
@@ -34,6 +35,7 @@ export function SiteHeader() {
 
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />
+          <UserMenu />
           <Link
             href="/discover"
             className="focus-ring rounded-full bg-forest-900 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-forest-700 dark:bg-forest-500 dark:hover:bg-forest-300 dark:hover:text-forest-950"
