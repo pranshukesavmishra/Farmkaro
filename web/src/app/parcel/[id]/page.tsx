@@ -26,6 +26,13 @@ export async function generateMetadata({
   return { title: `${formatAcres(p.areaAcres)} acres in ${p.village}` };
 }
 
+export async function generateStaticParams() {
+  const { seedData } = await import("@/lib/seed");
+  return seedData().parcels.map((p) => ({ id: p.id }));
+}
+
+export const dynamicParams = false;
+
 export default async function ParcelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const p = await getRepository().byId(id);

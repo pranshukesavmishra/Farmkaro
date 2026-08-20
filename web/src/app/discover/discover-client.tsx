@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { List, Map as MapIcon, SearchX, X } from "lucide-react";
 import { MapLegend, ParcelMap } from "@/components/parcel-map";
 import { ParcelCard, ParcelCardSkeleton } from "@/components/parcel-card";
 import { MatchScore } from "@/components/match-score";
 import { EmptyState } from "@/components/ui";
 import { JABALPUR } from "@/lib/seed";
+import { getRepository } from "@/lib/repo";
 import { formatAcres, formatINR } from "@/lib/geo";
 import type { ParcelView, SearchFilters, WaterSource } from "@/lib/types";
 import { cn } from "@/lib/cn";
@@ -31,13 +33,13 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: "area_desc", label: "Largest first" },
 ];
 
-interface Props {
-  initialQuery: string;
-  initialRadiusKm: number;
-}
+const RADII = [5, 10, 20, 50];
 
-export function DiscoverClient({ initialQuery, initialRadiusKm }: Props) {
-  const [radiusKm, setRadiusKm] = useState(initialRadiusKm);
+export function DiscoverClient() {
+  const searchParams = useSearchParams();
+  const initialQuery = searchParams.get("q")?.trim() ?? "";
+  const parsedRadius = Number(searchParams.get("radiusKm"));
+  const [radiusKm, setRadiusKm] = useState(RADII.includes(parsedRadius) ? parsedRadius : 20);
   const [water, setWater] = useState<WaterSource | "any">("any");
   const [minAcres, setMinAcres] = useState("");
   const [maxAcres, setMaxAcres] = useState("");
@@ -53,44 +55,38 @@ export function DiscoverClient({ initialQuery, initialRadiusKm }: Props) {
 
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Debounced fetch against /api/parcels. The pilot searches around the
-  // Jabalpur district centre; a free-text query is shown as a label only.
+  // Debounced search. The repository runs in the browser against the same
+  // dataset the server renders, which keeps the whole discovery surface
+  // deployable as a static site; when a PostGIS backend lands, this becomes
+  // a fetch against /api/parcels with identical semantics.
   useEffect(() => {
-    const controller = new AbortController();
+    let cancelled = false;
     setLoading(true);
 
     const t = setTimeout(async () => {
-      const qs = new URLSearchParams({
-        lng: String(JABALPUR[0]),
-        lat: String(JABALPUR[1]),
-        radiusKm: String(radiusKm),
+      const filters: SearchFilters = {
+        lng: JABALPUR[0],
+        lat: JABALPUR[1],
+        radiusKm,
         sort,
-        limit: "80",
-      });
-      if (water !== "any") qs.set("water", water);
-      if (minAcres) qs.set("minAcres", minAcres);
-      if (maxAcres) qs.set("maxAcres", maxAcres);
-      if (maxRent) qs.set("maxRentPerAcre", maxRent);
-      if (crop.trim()) qs.set("crop", crop.trim());
-      if (electricity) qs.set("electricity", "1");
+        limit: 80,
+      };
+      if (water !== "any") filters.water = water;
+      if (minAcres) filters.minAcres = Number(minAcres);
+      if (maxAcres) filters.maxAcres = Number(maxAcres);
+      if (maxRent) filters.maxRentPerAcre = Number(maxRent);
+      if (crop.trim()) filters.crop = crop.trim();
+      if (electricity) filters.electricity = true;
 
-      try {
-        const res = await fetch(`/api/parcels?${qs.toString()}`, { signal: controller.signal });
-        if (!res.ok) throw new Error(`API ${res.status}`);
-        const data: { count: number; parcels: ParcelView[] } = await res.json();
-        setParcels(data.parcels);
-        setSelectedId((prev) => (prev && data.parcels.some((p) => p.id === prev) ? prev : null));
-        setLoading(false);
-      } catch (err) {
-        if ((err as Error).name !== "AbortError") {
-          setParcels([]);
-          setLoading(false);
-        }
-      }
-    }, 300);
+      const rows = await getRepository().search(filters);
+      if (cancelled) return;
+      setParcels(rows);
+      setSelectedId((prev) => (prev && rows.some((p) => p.id === prev) ? prev : null));
+      setLoading(false);
+    }, 250);
 
     return () => {
-      controller.abort();
+      cancelled = true;
       clearTimeout(t);
     };
   }, [radiusKm, water, minAcres, maxAcres, maxRent, crop, electricity, sort]);
