@@ -1,0 +1,60 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+  --bg: #f7f6f2;
+  --surface: #ffffff;
+  --fg: #0a0f0c;
+  --fg-muted: #5c665e;
+  --line: #e4e3de;
+}
+.dark {
+  --bg: #001a10;
+  --surface: #101813;
+  --fg: #eef2ec;
+  --fg-muted: #93a099;
+  --line: #1e2a23;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .surface { background: var(--surface); border-color: var(--line); }
+  .hairline { border-color: var(--line); }
+  .muted { color: var(--fg-muted); }
+  .glass {
+    background: rgba(10, 15, 12, 0.55);
+    backdrop-filter: blur(10px) saturate(140%);
+    -webkit-backdrop-filter: blur(10px) saturate(140%);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+  }
+  .focus-ring { @apply outline-none ring-offset-2 focus-visible:ring-2 focus-visible:ring-forest-500; }
+}
+
+/* Boundary draw-in: the signature motion from the reference imagery */
+@keyframes draw-boundary { to { stroke-dashoffset: 0; } }
+.boundary-path {
+  stroke-dasharray: var(--dash, 6 5);
+  animation: none;
+}
+.boundary-draw {
+  stroke-dasharray: var(--len, 2000);
+  stroke-dashoffset: var(--len, 2000);
+  animation: draw-boundary 900ms cubic-bezier(.22,.61,.36,1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .boundary-draw { animation: none; stroke-dashoffset: 0; }
+  *, *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+}
+
+.maplibregl-ctrl-attrib { font-size: 10px; }
+.maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; }
