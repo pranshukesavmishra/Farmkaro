@@ -74,7 +74,6 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
       attributionControl: false,
       style: {
         version: 8,
-        glyphs: undefined,
         sources: {
           satellite: {
             type: "raster",

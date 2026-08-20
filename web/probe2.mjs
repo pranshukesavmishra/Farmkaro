@@ -1,0 +1,10 @@
+import { chromium } from "playwright";
+const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const p = await b.newPage({ viewport: { width: 1440, height: 950 } });
+const errs = [];
+p.on("pageerror", e => errs.push("PAGEERROR " + e.message.slice(0,300)));
+p.on("console", m => { if (["error","warning"].includes(m.type())) errs.push(m.type().toUpperCase()+" "+m.text().slice(0,300)); });
+await p.goto("http://localhost:3000/list-land", { waitUntil: "domcontentloaded" });
+await p.waitForTimeout(4000);
+console.log([...new Set(errs)].join("\n") || "clean");
+await b.close();

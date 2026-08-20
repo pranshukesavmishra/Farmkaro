@@ -4,6 +4,7 @@ import { Sprout } from "lucide-react";
 
 const NAV = [
   { href: "/discover", label: "Discover land" },
+  { href: "/list-land", label: "List your land" },
   { href: "/dashboard/owner", label: "For landowners" },
   { href: "/dashboard/farmer", label: "For cultivators" },
 ];
