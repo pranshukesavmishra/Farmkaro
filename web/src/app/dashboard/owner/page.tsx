@@ -102,7 +102,7 @@ export default async function OwnerDashboardPage() {
                       {
                         label: "Rent",
                         value: `${formatINR(p.listing.rentAnnual, { compact: true })}/yr`,
-                        at: { x: 0.78, y: 0.16 },
+                        at: { x: 0.7, y: 0.16 },
                       },
                     ]}
                   />

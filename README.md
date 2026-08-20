@@ -7,6 +7,19 @@ This repository currently holds the **v2 relaunch plan**: a post-mortem of the f
 sourced market and legal research, the product and technical architecture, and a
 week-by-week execution plan.
 
+## Run the web app
+
+```bash
+cd web
+npm install
+npm run dev        # http://localhost:3000
+```
+
+No database or API keys required to start: the app runs on a clearly-labelled
+sample dataset for the Jabalpur pilot district and a keyless satellite
+basemap. See `web/.env.example` for the production switches (real satellite
+tiles, PostGIS `DATABASE_URL`).
+
 ## Start here
 
 📄 **[`docs/00-executive-summary.md`](docs/00-executive-summary.md)**

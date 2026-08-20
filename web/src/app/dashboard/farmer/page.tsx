@@ -35,7 +35,7 @@ function registrationTone(s: Lease["registrationStatus"]) {
 
 export default async function FarmerDashboardPage() {
   const repo = getRepository();
-  const [results, allLeases] = await Promise.all([
+  const [results, browsed, allLeases] = await Promise.all([
     repo.search({
       lng: JABALPUR[0],
       lat: JABALPUR[1],
@@ -45,11 +45,14 @@ export default async function FarmerDashboardPage() {
       limit: 6,
       sort: "match",
     }),
+    // Broader pass around the same centre stands in for the user's bookmarks.
+    repo.search({ lng: JABALPUR[0], lat: JABALPUR[1], radiusKm: 25, limit: 8, sort: "match" }),
     repo.leases(),
   ]);
 
   const recommended = results.slice(0, 3);
-  const saved = results.slice(3);
+  const recIds = new Set(recommended.map((p) => p.id));
+  const saved = browsed.filter((p) => !recIds.has(p.id)).slice(0, 3);
   const [top, ...restRecommended] = recommended;
   const myLeases = allLeases.filter((l) => MY_NAMES.includes(l.lesseeName));
   const myPayments = myLeases.filter((l) => l.nextPaymentDue);
