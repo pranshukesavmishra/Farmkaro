@@ -15,10 +15,15 @@ npm install
 npm run dev        # http://localhost:3000
 ```
 
-No database or API keys required to start: the app runs on a clearly-labelled
-sample dataset for the Jabalpur pilot district and a keyless satellite
-basemap. See `web/.env.example` for the production switches (real satellite
-tiles, PostGIS `DATABASE_URL`).
+**No API keys required — for anything.** The map is a true hybrid view built
+from keyless open services: real satellite imagery, place labels and roads
+(Esri), plus place search (OpenStreetMap Nominatim). Data starts as a
+clearly-labelled sample set for the Jabalpur pilot district, stored in a local
+SQLite database that is created on first run.
+
+A Google Maps key is optional: set `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` and the
+discovery map switches to Google satellite with the same pins and boundaries.
+See `web/.env.example` for every optional switch.
 
 ## Start here
 

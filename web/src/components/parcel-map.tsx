@@ -3,7 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { SATELLITE_TILE_URL, formatINR, type Position } from "@/lib/geo";
+import {
+  IS_DEV_BASEMAP,
+  LABELS_TILE_URL,
+  ROADS_TILE_URL,
+  SATELLITE_TILE_URL,
+  formatINR,
+  type Position,
+} from "@/lib/geo";
 import type { ParcelView } from "@/lib/types";
 import { Layers, Loader2, LocateFixed } from "lucide-react";
 
@@ -65,10 +72,25 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
             maxzoom: 18,
             attribution: "Satellite imagery © Esri, Maxar, Earthstar Geographics",
           },
+          // Hybrid overlays: place labels + roads on top of imagery, the same
+          // composition Google's hybrid view uses. Skipped on the offline dev
+          // basemap, which has no external network.
+          ...(IS_DEV_BASEMAP
+            ? {}
+            : {
+                places: { type: "raster" as const, tiles: [LABELS_TILE_URL], tileSize: 256, maxzoom: 18 },
+                roads: { type: "raster" as const, tiles: [ROADS_TILE_URL], tileSize: 256, maxzoom: 18 },
+              }),
         },
         layers: [
           { id: "bg", type: "background", paint: { "background-color": "#0d1a12" } },
           { id: "satellite", type: "raster", source: "satellite" },
+          ...(IS_DEV_BASEMAP
+            ? []
+            : [
+                { id: "roads", type: "raster" as const, source: "roads", paint: { "raster-opacity": 0.85 } },
+                { id: "places", type: "raster" as const, source: "places", paint: { "raster-opacity": 0.95 } },
+              ]),
         ],
       },
       center: center ?? [79.9864, 23.1815],

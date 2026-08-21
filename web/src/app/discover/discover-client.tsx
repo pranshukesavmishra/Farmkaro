@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { List, Map as MapIcon, SearchX, X } from "lucide-react";
+import { List, Loader2, MapPin, Map as MapIcon, SearchX, X } from "lucide-react";
 import { DiscoveryMap, MapLegend } from "@/components/discovery-map";
 import { ParcelCard, ParcelCardSkeleton } from "@/components/parcel-card";
 import { MatchScore } from "@/components/match-score";
 import { EmptyState } from "@/components/ui";
 import { JABALPUR } from "@/lib/seed";
+import { geocode, type Place } from "@/lib/geocode";
 import { getRepository } from "@/lib/repo";
 import { formatAcres, formatINR } from "@/lib/geo";
 import type { ParcelView, SearchFilters, WaterSource } from "@/lib/types";
@@ -48,6 +49,13 @@ export function DiscoverClient() {
   const [electricity, setElectricity] = useState(false);
   const [sort, setSort] = useState<SortKey>("match");
 
+  // Searched location (keyless geocoding). Falls back to the district centre.
+  const [placeQuery, setPlaceQuery] = useState(initialQuery);
+  const [placeCenter, setPlaceCenter] = useState<[number, number] | null>(null);
+  const [placeLabel, setPlaceLabel] = useState<string | null>(null);
+  const [placeBusy, setPlaceBusy] = useState(false);
+  const [placeError, setPlaceError] = useState<string | null>(null);
+
   const [parcels, setParcels] = useState<ParcelView[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -65,8 +73,8 @@ export function DiscoverClient() {
 
     const t = setTimeout(async () => {
       const filters: SearchFilters = {
-        lng: JABALPUR[0],
-        lat: JABALPUR[1],
+        lng: (placeCenter ?? JABALPUR)[0],
+        lat: (placeCenter ?? JABALPUR)[1],
         radiusKm,
         sort,
         limit: 80,
@@ -89,7 +97,39 @@ export function DiscoverClient() {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [radiusKm, water, minAcres, maxAcres, maxRent, crop, electricity, sort]);
+  }, [radiusKm, water, minAcres, maxAcres, maxRent, crop, electricity, sort, placeCenter]);
+
+  const runPlaceSearch = useCallback(
+    async (q?: string) => {
+      const query = (q ?? placeQuery).trim();
+      if (query.length < 3) return;
+      setPlaceBusy(true);
+      setPlaceError(null);
+      try {
+        const results = await geocode(query);
+        if (!results.length) {
+          setPlaceError(`No place found for “${query}”. Try a nearby town or tehsil.`);
+          return;
+        }
+        const best: Place = results[0];
+        setPlaceCenter(best.position);
+        setPlaceLabel(best.short);
+      } catch {
+        setPlaceError("Place search is unavailable right now. Showing the district centre.");
+      } finally {
+        setPlaceBusy(false);
+      }
+    },
+    [placeQuery],
+  );
+
+  // Honour ?q= from the homepage search on first load.
+  const didInitialSearch = useRef(false);
+  useEffect(() => {
+    if (didInitialSearch.current || initialQuery.length < 3) return;
+    didInitialSearch.current = true;
+    void runPlaceSearch(initialQuery);
+  }, [initialQuery, runPlaceSearch]);
 
   const selected = useMemo(
     () => parcels.find((p) => p.id === selectedId) ?? null,
@@ -130,10 +170,57 @@ export function DiscoverClient() {
             )}
           </div>
           <p className="mt-1 text-[13px] muted">
-            {initialQuery
-              ? `Searching around “${initialQuery}”, Jabalpur district`
-              : "Around Jabalpur district centre"}
+            {placeLabel ? `Around ${placeLabel}` : "Around Jabalpur district centre"}
           </p>
+
+          {/* Place search — keyless geocoding, no API key required */}
+          <form
+            className="mt-3 flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void runPlaceSearch();
+            }}
+          >
+            <div className="relative flex-1">
+              <MapPin
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--fg-muted)]"
+                aria-hidden
+              />
+              <input
+                value={placeQuery}
+                onChange={(e) => setPlaceQuery(e.target.value)}
+                placeholder="Search a village, tehsil or town"
+                aria-label="Search a place"
+                className={cn(fieldCls, "w-full pl-8")}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={placeBusy || placeQuery.trim().length < 3}
+              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-forest-900 px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-forest-700 disabled:opacity-40 dark:bg-forest-500"
+            >
+              {placeBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Go
+            </button>
+            {placeCenter && (
+              <button
+                type="button"
+                onClick={() => {
+                  setPlaceCenter(null);
+                  setPlaceLabel(null);
+                  setPlaceQuery("");
+                  setPlaceError(null);
+                }}
+                className="focus-ring rounded-lg border hairline px-3 py-2 text-[13px] font-medium hover:bg-[var(--bg)]"
+              >
+                Reset
+              </button>
+            )}
+          </form>
+          {placeError && (
+            <p role="alert" className="mt-1.5 text-[12px] text-danger">
+              {placeError}
+            </p>
+          )}
 
           {/* Filters */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -316,7 +403,7 @@ export function DiscoverClient() {
             parcels={parcels}
             selectedId={selectedId}
             onSelect={handleMapSelect}
-            center={JABALPUR}
+            center={placeCenter ?? JABALPUR}
             radiusKm={radiusKm}
             className="relative h-[calc(100dvh-180px)] w-full lg:min-h-0 lg:flex-1"
           />

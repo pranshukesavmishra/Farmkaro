@@ -180,13 +180,33 @@ export function buildTileFrame(bbox: BBox, width: number, height: number, pad = 
   };
 }
 
-/** Free satellite basemap — no API key. Swap via NEXT_PUBLIC_SATELLITE_TILE_URL. */
+/**
+ * Keyless "hybrid" basemap — the Google-Maps look without a Google key.
+ *
+ * Google's hybrid view is three stacked layers: satellite imagery, then place
+ * labels, then roads. Esri serves all three as open raster tiles with no API
+ * key and no signup, so the default map is a true equivalent rather than a
+ * downgrade. Everything is still swappable through env vars.
+ */
 export const SATELLITE_TILE_URL =
   process.env.NEXT_PUBLIC_SATELLITE_TILE_URL ??
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
 export const tileUrl = (x: number, y: number, z: number) =>
   SATELLITE_TILE_URL.replace("{z}", String(z)).replace("{x}", String(x)).replace("{y}", String(y));
+
+/** True when running on the offline development basemap (no external network). */
+export const IS_DEV_BASEMAP = SATELLITE_TILE_URL.startsWith("/api/dev-tiles");
+
+/** Place labels (towns, villages, districts) — keyless. */
+export const LABELS_TILE_URL =
+  process.env.NEXT_PUBLIC_LABELS_TILE_URL ??
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+
+/** Roads and transport lines — keyless. */
+export const ROADS_TILE_URL =
+  process.env.NEXT_PUBLIC_ROADS_TILE_URL ??
+  "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
 
 /** Format an acreage the way an Indian landowner reads it. */
 export function formatAcres(acres: number): string {
