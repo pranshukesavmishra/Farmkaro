@@ -2,11 +2,14 @@ import Link from "next/link";
 import { Droplets, Route, Zap } from "lucide-react";
 import { ParcelOverlayCard } from "./parcel-overlay-card";
 import { MatchScore } from "./match-score";
-import { Badge } from "./ui";
 import { formatAcres, formatDistance, formatINR } from "@/lib/geo";
-import { ROAD_LABEL, WATER_LABEL, type ParcelView } from "@/lib/types";
+import { GEOMETRY_LABEL, ROAD_LABEL, WATER_LABEL, type ParcelView } from "@/lib/types";
 import { cn } from "@/lib/cn";
 
+/**
+ * A parcel as a survey card: imagery on top, then a measured readout. Rent and
+ * area are monospace because they are data the reader compares across cards.
+ */
 export function ParcelCard({
   p,
   showMatch = true,
@@ -16,69 +19,78 @@ export function ParcelCard({
   showMatch?: boolean;
   className?: string;
 }) {
+  const irrigated = !p.waterSources.includes("rainfed");
+
   return (
-    <article
-      className={cn(
-        "surface group overflow-hidden rounded-2xl border transition-shadow hover:shadow-[0_18px_40px_-28px_rgba(0,54,34,.55)]",
-        className,
-      )}
-    >
-      <div className="relative h-[188px]">
+    <article className={cn("card card-lift group overflow-hidden", className)}>
+      <div className="relative h-[176px] overflow-hidden">
         <ParcelOverlayCard
           geometry={p.geometry}
           href={`/parcel/${p.id}`}
           rounded="rounded-none"
-          placeLabel={undefined}
-          pills={[
-            { label: "Area", value: `${formatAcres(p.areaAcres)} ac`, at: { x: 0.19, y: 0.13 } },
-            ...(p.distanceM != null
-              ? [{ label: "Away", value: formatDistance(p.distanceM), at: { x: 0.78, y: 0.13 } } as const]
-              : []),
-          ]}
+          pad={2.3}
+          pills={
+            p.distanceM != null
+              ? [{ label: "Away", value: formatDistance(p.distanceM), at: { x: 0.79, y: 0.12 } }]
+              : []
+          }
         />
+        {showMatch && p.match && (
+          <div className="pointer-events-none absolute left-3 top-3 z-10">
+            <MatchScore score={p.match.score} breakdown={p.match.breakdown} compact />
+          </div>
+        )}
       </div>
 
-      <div className="space-y-3 p-4">
+      <div className="space-y-3.5 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="truncate text-[15px] font-semibold tracking-tight">
-              <Link href={`/parcel/${p.id}`} className="focus-ring rounded">
-                {p.village}, {p.tehsil}
+            <h3 className="display truncate text-md">
+              <Link href={`/parcel/${p.id}`} className="focus-ring hover:text-brand">
+                {p.village}
               </Link>
             </h3>
-            <p className="mt-0.5 font-mono text-[11.5px] muted">
+            <p className="mt-0.5 font-mono text-xs text-ink-faint">
               {p.ref} · Khasra {p.khasraNumber}
             </p>
           </div>
-          {showMatch && p.match && (
-            <MatchScore score={p.match.score} breakdown={p.match.breakdown} compact />
-          )}
+          <p className="readout shrink-0 text-md font-semibold">{formatAcres(p.areaAcres)} ac</p>
         </div>
 
-        <div className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
-          <span className="font-mono text-[19px] font-semibold tabular-nums tracking-tight">
+        <div className="flex items-baseline gap-2 border-t border-line pt-3.5">
+          <span className="readout text-lg font-semibold text-ink">
             {formatINR(p.listing.rentAnnual)}
           </span>
-          <span className="text-[12.5px] muted">/ year</span>
-          <span className="text-[12.5px] muted">
-            · {formatINR(p.listing.rentPerAcre)}/acre
+          <span className="text-sm text-ink-muted">/ year</span>
+          <span className="readout ml-auto text-xs text-ink-faint">
+            {formatINR(p.listing.rentPerAcre)}/ac
           </span>
         </div>
 
-        <div className="flex flex-wrap gap-1.5">
-          <Badge tone={p.waterSources.includes("rainfed") ? "muted" : "good"}>
-            <Droplets className="h-3 w-3" aria-hidden />
+        <ul className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-ink-muted">
+          <li className="inline-flex items-center gap-1.5">
+            <Droplets
+              className={cn("h-3.5 w-3.5", irrigated ? "text-brand" : "text-ink-faint")}
+              aria-hidden
+            />
             {p.waterSources.map((w) => WATER_LABEL[w]).join(" + ")}
-          </Badge>
-          <Badge tone={p.electricity ? "good" : "muted"}>
-            <Zap className="h-3 w-3" aria-hidden />
-            {p.electricity ? `Power · ${p.electricityHours ?? 0} hrs` : "No power"}
-          </Badge>
-          <Badge tone={p.roadAccess === "none" ? "muted" : "neutral"}>
-            <Route className="h-3 w-3" aria-hidden />
+          </li>
+          <li className="inline-flex items-center gap-1.5">
+            <Zap
+              className={cn("h-3.5 w-3.5", p.electricity ? "text-brand" : "text-ink-faint")}
+              aria-hidden
+            />
+            {p.electricity ? `${p.electricityHours ?? 0} hrs power` : "No power"}
+          </li>
+          <li className="inline-flex items-center gap-1.5">
+            <Route className="h-3.5 w-3.5 text-ink-faint" aria-hidden />
             {ROAD_LABEL[p.roadAccess]}
-          </Badge>
-        </div>
+          </li>
+        </ul>
+
+        <p className="border-t border-line pt-3 text-xs text-ink-faint">
+          {GEOMETRY_LABEL[p.geometryStatus]}
+        </p>
       </div>
     </article>
   );
@@ -86,15 +98,14 @@ export function ParcelCard({
 
 export function ParcelCardSkeleton() {
   return (
-    <div className="surface overflow-hidden rounded-2xl border">
-      <div className="h-[188px] animate-pulse bg-[var(--line)]/60" />
+    <div className="card overflow-hidden">
+      <div className="relative h-[176px] overflow-hidden bg-surface-2">
+        <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/5 to-transparent" />
+      </div>
       <div className="space-y-3 p-4">
-        <div className="h-4 w-2/3 animate-pulse rounded bg-[var(--line)]/60" />
-        <div className="h-5 w-1/2 animate-pulse rounded bg-[var(--line)]/60" />
-        <div className="flex gap-2">
-          <div className="h-6 w-24 animate-pulse rounded-full bg-[var(--line)]/60" />
-          <div className="h-6 w-20 animate-pulse rounded-full bg-[var(--line)]/60" />
-        </div>
+        <div className="h-4 w-2/3 rounded bg-surface-2" />
+        <div className="h-5 w-1/2 rounded bg-surface-2" />
+        <div className="h-3 w-full rounded bg-surface-2" />
       </div>
     </div>
   );

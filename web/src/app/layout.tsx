@@ -24,10 +24,10 @@ export const viewport: Viewport = {
 const THEME_INIT = `
 (function(){try{
   var t=localStorage.getItem('fk-theme');
-  if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){
-    document.documentElement.classList.add('dark');
-  }
-}catch(e){}})();
+  // Dark is the default: satellite imagery is the product and it glows
+  // against a deep canvas. An explicit light choice still wins.
+  if(t!=='light'){ document.documentElement.classList.add('dark'); }
+}catch(e){document.documentElement.classList.add('dark');}})();
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -38,10 +38,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
           rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
         />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
-        <style>{`:root{--font-sans:"Instrument Sans",system-ui,sans-serif;--font-mono:"IBM Plex Mono",ui-monospace,monospace}`}</style>
+
       </head>
       <body className="min-h-screen antialiased">
         <AuthProvider>

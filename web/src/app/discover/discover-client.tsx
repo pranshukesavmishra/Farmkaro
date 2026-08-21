@@ -148,34 +148,34 @@ export function DiscoverClient() {
     }
   };
 
-  const fieldCls =
-    "surface focus-ring rounded-lg border px-2.5 py-2 text-[13px] leading-none";
+  const fieldCls = "field focus-ring py-2 text-sm leading-none";
 
   return (
-    <div className="mx-auto max-w-[1440px]">
+    <div className="mx-auto max-w-shell">
       <div className="lg:flex">
         {/* Left panel */}
         <div
           className={cn(
-            "shrink-0 px-4 pb-24 pt-5 sm:px-6 lg:h-[calc(100vh-86px)] lg:w-[440px] lg:overflow-y-auto lg:pb-8",
+            "thin-scroll shrink-0 px-4 pb-24 pt-6 sm:px-6 lg:h-[calc(100vh-64px)] lg:w-[452px] lg:overflow-y-auto lg:pb-10",
             view === "map" && "hidden lg:block",
           )}
         >
-          <div className="flex items-baseline justify-between gap-3">
-            <h1 className="text-[22px] font-semibold tracking-tight">Discover farmland</h1>
+          <p className="eyebrow">Jabalpur district</p>
+          <div className="mt-2 flex items-baseline justify-between gap-3">
+            <h1 className="display text-xl">Discover farmland</h1>
             {!loading && (
-              <span className="font-mono text-[12px] tabular-nums muted">
+              <span className="readout text-sm text-ink-faint">
                 {parcels.length} result{parcels.length === 1 ? "" : "s"}
               </span>
             )}
           </div>
-          <p className="mt-1 text-[13px] muted">
-            {placeLabel ? `Around ${placeLabel}` : "Around Jabalpur district centre"}
+          <p className="mt-1 text-sm text-ink-muted">
+            {placeLabel ? `Around ${placeLabel}` : "Around the district centre"}
           </p>
 
           {/* Place search — keyless geocoding, no API key required */}
           <form
-            className="mt-3 flex gap-2"
+            className="mt-4 flex gap-2"
             onSubmit={(e) => {
               e.preventDefault();
               void runPlaceSearch();
@@ -183,7 +183,7 @@ export function DiscoverClient() {
           >
             <div className="relative flex-1">
               <MapPin
-                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--fg-muted)]"
+                className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-ink-faint"
                 aria-hidden
               />
               <input
@@ -191,13 +191,13 @@ export function DiscoverClient() {
                 onChange={(e) => setPlaceQuery(e.target.value)}
                 placeholder="Search a village, tehsil or town"
                 aria-label="Search a place"
-                className={cn(fieldCls, "w-full pl-8")}
+                className={cn(fieldCls, "w-full pl-9")}
               />
             </div>
             <button
               type="submit"
               disabled={placeBusy || placeQuery.trim().length < 3}
-              className="focus-ring inline-flex items-center gap-1.5 rounded-lg bg-forest-900 px-3.5 py-2 text-[13px] font-semibold text-white hover:bg-forest-700 disabled:opacity-40 dark:bg-forest-500"
+              className="btn btn-primary shrink-0 px-4 py-2"
             >
               {placeBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null} Go
             </button>
@@ -210,20 +210,20 @@ export function DiscoverClient() {
                   setPlaceQuery("");
                   setPlaceError(null);
                 }}
-                className="focus-ring rounded-lg border hairline px-3 py-2 text-[13px] font-medium hover:bg-[var(--bg)]"
+                className="btn btn-ghost shrink-0 px-3.5 py-2"
               >
                 Reset
               </button>
             )}
           </form>
           {placeError && (
-            <p role="alert" className="mt-1.5 text-[12px] text-danger">
+            <p role="alert" className="mt-2 text-xs text-danger">
               {placeError}
             </p>
           )}
 
           {/* Filters */}
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-line pt-4">
             <select
               value={radiusKm}
               onChange={(e) => setRadiusKm(Number(e.target.value))}
@@ -257,17 +257,17 @@ export function DiscoverClient() {
                 value={minAcres}
                 onChange={(e) => setMinAcres(e.target.value)}
                 placeholder="Min ac"
-                className={cn(fieldCls, "w-[74px]")}
+                className={cn(fieldCls, "w-full min-w-0")}
                 aria-label="Minimum acres"
               />
-              <span className="text-[12px] muted">–</span>
+              <span className="text-xs text-ink-faint">–</span>
               <input
                 type="number"
                 min={0}
                 value={maxAcres}
                 onChange={(e) => setMaxAcres(e.target.value)}
                 placeholder="Max ac"
-                className={cn(fieldCls, "w-[74px]")}
+                className={cn(fieldCls, "w-full min-w-0")}
                 aria-label="Maximum acres"
               />
             </span>
@@ -279,7 +279,7 @@ export function DiscoverClient() {
               value={maxRent}
               onChange={(e) => setMaxRent(e.target.value)}
               placeholder="Max ₹/acre"
-              className={cn(fieldCls, "w-[104px]")}
+              className={cn(fieldCls, "w-full")}
               aria-label="Maximum rent per acre per year"
             />
 
@@ -288,22 +288,22 @@ export function DiscoverClient() {
               value={crop}
               onChange={(e) => setCrop(e.target.value)}
               placeholder="Crop, e.g. Wheat"
-              className={cn(fieldCls, "w-[128px]")}
+              className={cn(fieldCls, "w-full")}
               aria-label="Crop"
             />
 
             <label
               className={cn(
                 fieldCls,
-                "flex cursor-pointer select-none items-center gap-1.5",
-                electricity && "border-forest-500/50 text-forest-700 dark:text-forest-300",
+                "flex cursor-pointer select-none items-center gap-2",
+                electricity && "border-brand text-brand",
               )}
             >
               <input
                 type="checkbox"
                 checked={electricity}
                 onChange={(e) => setElectricity(e.target.checked)}
-                className="accent-[#1B6B47]"
+                className="accent-[var(--brand)]"
               />
               Electricity
             </label>
@@ -311,7 +311,7 @@ export function DiscoverClient() {
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as SortKey)}
-              className={fieldCls}
+              className={cn(fieldCls, "col-span-2")}
               aria-label="Sort order"
             >
               {SORT_OPTIONS.map((s) => (
@@ -329,12 +329,15 @@ export function DiscoverClient() {
 
           {/* Selected parcel strip */}
           {selected && (
-            <div className="surface mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-xl border border-gold/45 p-3">
+            <div
+              className="card mt-4 flex flex-wrap items-center gap-x-3 gap-y-1.5 p-3.5"
+              style={{ borderColor: "var(--gold)", background: "var(--gold-soft)" }}
+            >
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] font-semibold tracking-tight">
+                <p className="display truncate text-md">
                   {selected.village}, {selected.tehsil}
                 </p>
-                <p className="font-mono text-[11.5px] muted">
+                <p className="readout mt-0.5 text-xs text-ink-muted">
                   {selected.ref} · {formatAcres(selected.areaAcres)} ac ·{" "}
                   {formatINR(selected.listing.rentAnnual)}/yr
                 </p>
@@ -344,7 +347,7 @@ export function DiscoverClient() {
               )}
               <Link
                 href={`/parcel/${selected.id}`}
-                className="focus-ring rounded-md text-[13px] font-semibold text-forest-700 hover:underline dark:text-forest-300"
+                className="focus-ring text-sm font-semibold text-brand hover:underline"
               >
                 View parcel →
               </Link>
@@ -352,7 +355,7 @@ export function DiscoverClient() {
                 type="button"
                 onClick={() => setSelectedId(null)}
                 aria-label="Clear selection"
-                className="focus-ring rounded-md p-1 text-[var(--fg-muted)] hover:text-[var(--fg)]"
+                className="focus-ring rounded-md p-1 text-ink-faint hover:text-ink"
               >
                 <X className="h-3.5 w-3.5" aria-hidden />
               </button>
@@ -360,7 +363,7 @@ export function DiscoverClient() {
           )}
 
           {/* Results */}
-          <div ref={listRef} className="mt-4 space-y-4">
+          <div ref={listRef} className="mt-5 space-y-4">
             {loading ? (
               <>
                 <ParcelCardSkeleton />
@@ -371,8 +374,8 @@ export function DiscoverClient() {
             ) : parcels.length === 0 ? (
               <EmptyState
                 icon={<SearchX className="h-7 w-7" aria-hidden />}
-                title="No parcels match"
-                body="No parcels match — widen the radius or relax a filter."
+                title="Nothing in this area yet"
+                body="No parcels match these filters. Try widening the radius, or relax a filter to see more land."
               />
             ) : (
               parcels.map((p) => (
@@ -381,8 +384,8 @@ export function DiscoverClient() {
                   id={`parcel-card-${p.id}`}
                   onClick={() => setSelectedId(p.id)}
                   className={cn(
-                    "rounded-2xl transition-shadow",
-                    selectedId === p.id && "ring-2 ring-gold",
+                    "cursor-pointer rounded-lg transition-all",
+                    selectedId === p.id && "ring-2 ring-[var(--gold)] ring-offset-2 ring-offset-[var(--canvas)]",
                   )}
                 >
                   <ParcelCard p={p} />
@@ -395,7 +398,7 @@ export function DiscoverClient() {
         {/* Map */}
         <div
           className={cn(
-            "min-w-0 flex-1 lg:flex lg:h-[calc(100vh-86px)] lg:flex-col",
+            "min-w-0 flex-1 lg:flex lg:h-[calc(100vh-64px)] lg:flex-col",
             view === "list" && "hidden lg:flex",
           )}
         >
@@ -407,7 +410,7 @@ export function DiscoverClient() {
             radiusKm={radiusKm}
             className="relative h-[calc(100dvh-180px)] w-full lg:min-h-0 lg:flex-1"
           />
-          <div className="hidden px-4 py-2.5 lg:block">
+          <div className="hidden border-t border-line px-5 py-3 lg:block">
             <MapLegend />
           </div>
         </div>
@@ -415,13 +418,13 @@ export function DiscoverClient() {
 
       {/* Mobile map/list toggle */}
       <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 lg:hidden">
-        <div className="surface flex overflow-hidden rounded-full border shadow-lg">
+        <div className="card flex overflow-hidden rounded-full p-1 shadow-lg">
           <button
             type="button"
             onClick={() => setView("map")}
             className={cn(
-              "focus-ring flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold",
-              view === "map" ? "bg-forest-900 text-white" : "text-[var(--fg-muted)]",
+              "focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+              view === "map" ? "bg-brand text-brand-ink" : "text-ink-muted hover:text-ink",
             )}
           >
             <MapIcon className="h-3.5 w-3.5" aria-hidden /> Map
@@ -430,8 +433,8 @@ export function DiscoverClient() {
             type="button"
             onClick={() => setView("list")}
             className={cn(
-              "focus-ring flex items-center gap-1.5 px-4 py-2.5 text-[13px] font-semibold",
-              view === "list" ? "bg-forest-900 text-white" : "text-[var(--fg-muted)]",
+              "focus-ring flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-colors",
+              view === "list" ? "bg-brand text-brand-ink" : "text-ink-muted hover:text-ink",
             )}
           >
             <List className="h-3.5 w-3.5" aria-hidden /> List

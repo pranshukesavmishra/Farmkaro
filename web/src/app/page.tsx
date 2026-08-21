@@ -1,233 +1,272 @@
 import Link from "next/link";
 import {
+  ArrowRight,
   FileSignature,
   IndianRupee,
   Map as MapIcon,
   Search,
   ShieldCheck,
-  Sprout,
 } from "lucide-react";
 import { ParcelOverlayCard, SatelliteAttribution } from "@/components/parcel-overlay-card";
 import { ParcelCard } from "@/components/parcel-card";
-import { Section } from "@/components/ui";
 import { getRepository } from "@/lib/repo";
 import { JABALPUR } from "@/lib/seed";
 import { formatAcres, formatINR } from "@/lib/geo";
-import { WATER_LABEL } from "@/lib/types";
 
 const WHY = [
   {
     icon: ShieldCheck,
-    title: "Honest verification ladder",
-    body: "Every parcel shows the exact rung reached — uploaded is not the same as verified, and we never pretend otherwise.",
-  },
-  {
-    icon: FileSignature,
-    title: "Registered digital leases",
-    body: "Fixed end dates with certainty of possession. Leases under the state framework create no tenancy or occupancy rights.",
+    title: "An honest verification ladder",
+    body: "Every parcel shows the exact rung it has reached. “Uploaded” is not “verified”, and we never blur the two.",
   },
   {
     icon: MapIcon,
-    title: "Real parcel boundaries",
-    body: "Actual polygons on satellite imagery — GeoJSON you can inspect, never a pin dropped somewhere near the land.",
+    title: "Real land, on real satellite",
+    body: "Parcels sit at their true coordinates on live imagery. A surveyed boundary is drawn only once one genuinely exists.",
+  },
+  {
+    icon: FileSignature,
+    title: "Leases with an end date",
+    body: "Executed under the state framework: a fixed term, possession reverting on expiry, and no tenancy or occupancy rights created.",
   },
   {
     icon: IndianRupee,
-    title: "Transparent pricing",
-    body: "A published fee list and rent comparables from completed leases. No hidden brokerage, no invented estimates.",
+    title: "Published, transparent pricing",
+    body: "A public fee list, and rent ranges drawn only from leases that actually completed. No invented valuations.",
   },
 ];
 
 const STEPS = [
-  {
-    n: "01",
-    title: "Discover",
-    body: "Search real parcels around Jabalpur by water, area, rent and crop — with explainable match scores.",
-  },
-  {
-    n: "02",
-    title: "Verify",
-    body: "Read the verification ladder for boundaries, documents and identity before you commit to anything.",
-  },
-  {
-    n: "03",
-    title: "Lease",
-    body: "Execute a digital lease with a fixed term and registration status you can see at every step.",
-  },
-  {
-    n: "04",
-    title: "Farm",
-    body: "Cultivate with certainty — rent schedules are recorded, and possession reverts on expiry.",
-  },
+  { n: "01", t: "Discover", d: "Search by village or radius. Compare rent, water, road access and soil on one map." },
+  { n: "02", t: "Verify", d: "Inspect documents, boundary status and the owner's identity checks before you commit." },
+  { n: "03", t: "Lease", d: "Agree terms, sign digitally, and register the lease under the state framework." },
+  { n: "04", t: "Farm", d: "Rent schedule, receipts and renewal reminders run in one place for both sides." },
 ];
 
-export default async function HomePage() {
+export default async function Home() {
   const repo = getRepository();
-  const [heroParcels, nearby] = await Promise.all([
-    repo.search({ sort: "area_desc", limit: 1 }),
-    repo.search({ lng: JABALPUR[0], lat: JABALPUR[1], radiusKm: 50, limit: 6 }),
-  ]);
-  const hero = heroParcels[0];
+  const [hero] = await repo.search({ limit: 1, sort: "area_desc" });
+  const featured = await repo.search({
+    lng: JABALPUR[0],
+    lat: JABALPUR[1],
+    radiusKm: 50,
+    limit: 6,
+    sort: "match",
+  });
+
+  // Real totals across everything listed — never a multiplied-up figure.
+  const all = await repo.search({});
+  const totalAcres = all.reduce((sum, p) => sum + p.areaAcres, 0);
+  const villages = new Set(all.map((p) => p.village)).size;
 
   return (
-    <div className="mx-auto max-w-[1440px] px-4 sm:px-6">
-      {/* Hero */}
-      <section className="grid items-center gap-8 py-10 sm:py-14 lg:grid-cols-2 lg:gap-12 lg:py-20">
-        <div className="max-w-[560px]">
-          <h1 className="text-[34px] font-semibold leading-[1.08] tracking-tight sm:text-[46px]">
-            Find the right farmland. Lease it with confidence.
+    <>
+      {/* ── Hero ───────────────────────────────────────────────────────────── */}
+      <section className="relative isolate overflow-hidden">
+        <div className="absolute inset-0 -z-10">
+          {hero && (
+            <ParcelOverlayCard
+              geometry={hero.geometry}
+              pad={3.4}
+              rounded="rounded-none"
+              className="h-full w-full"
+            />
+          )}
+        </div>
+        {/* Scrim: keeps type legible while letting the land show through. */}
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "linear-gradient(105deg, var(--canvas) 0%, color-mix(in srgb, var(--canvas) 88%, transparent) 34%, color-mix(in srgb, var(--canvas) 30%, transparent) 62%, transparent 100%)",
+          }}
+        />
+        <div
+          className="pointer-events-none absolute inset-x-0 bottom-0 -z-10 h-40"
+          style={{ background: "linear-gradient(to bottom, transparent, var(--canvas))" }}
+        />
+
+        <div className="mx-auto max-w-shell px-4 pb-16 pt-20 sm:px-6 sm:pb-24 sm:pt-28">
+          <p className="eyebrow rise">Madhya Pradesh · Jabalpur district</p>
+
+          <h1
+            className="display mt-5 max-w-[15ch] text-3xl rise"
+            style={{ animationDelay: "60ms" }}
+          >
+            Find the right farmland.
+            <br />
+            <span className="text-brand">Lease it with confidence.</span>
           </h1>
-          <p className="mt-4 text-[15.5px] leading-[1.6] muted sm:text-[16.5px]">
-            Registered, non-tenancy-creating leases on verified parcels in the Jabalpur pilot
-            district — real locations on satellite, honest document status, and end-date certainty for both
-            sides.
+
+          <p
+            className="mt-6 max-w-[46ch] text-md leading-relaxed text-ink-muted rise"
+            style={{ animationDelay: "120ms" }}
+          >
+            Registered, non-tenancy-creating leases on farmland you can actually inspect — real
+            locations, honest document status, and an end date both sides can rely on.
           </p>
-          <p className="mt-3 text-[15px] font-medium text-forest-700 dark:text-forest-300">
-            कागज़ पूरे, तारीख तय, ज़मीन आपकी।
+          <p
+            className="mt-2 max-w-[46ch] text-sm text-ink-faint rise"
+            style={{ animationDelay: "150ms" }}
+          >
+            कागज़ पूरे, तारीख़ तय, ज़मीन आपकी।
           </p>
 
+          {/* Search — an instrument, not a form */}
           <form
             action="/discover"
-            method="get"
-            className="mt-7 flex flex-col gap-2.5 sm:flex-row sm:items-stretch"
+            className="card ticks mt-9 flex max-w-xl flex-col gap-2 p-2 shadow-lg rise sm:flex-row sm:items-center"
+            style={{ animationDelay: "200ms" }}
           >
-            <label className="surface flex flex-1 items-center gap-2.5 rounded-xl border px-3.5">
-              <Search className="h-4 w-4 shrink-0 text-[var(--fg-muted)]" aria-hidden />
-              <input
-                type="text"
-                name="q"
-                placeholder="Village or tehsil in Jabalpur…"
-                className="focus-ring w-full bg-transparent py-3 text-[14.5px] outline-none placeholder:text-[var(--fg-muted)]"
-                aria-label="Village or tehsil in Jabalpur"
+            <label htmlFor="q" className="sr-only">
+              Village or tehsil
+            </label>
+            <div className="relative flex-1">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-faint"
+                aria-hidden
               />
+              <input
+                id="q"
+                name="q"
+                placeholder="Village or tehsil in Jabalpur"
+                className="field border-0 bg-transparent pl-9 focus:shadow-none"
+              />
+            </div>
+            <label htmlFor="radiusKm" className="sr-only">
+              Radius
             </label>
             <select
+              id="radiusKm"
               name="radiusKm"
               defaultValue="20"
-              aria-label="Search radius"
-              className="surface focus-ring rounded-xl border px-3.5 py-3 text-[14px]"
+              className="field w-full border-0 bg-surface-2 font-mono text-sm sm:w-auto"
             >
-              <option value="5">Within 5 km</option>
-              <option value="10">Within 10 km</option>
-              <option value="20">Within 20 km</option>
-              <option value="50">Within 50 km</option>
+              {[5, 10, 20, 50].map((r) => (
+                <option key={r} value={r}>
+                  Within {r} km
+                </option>
+              ))}
             </select>
-            <button
-              type="submit"
-              className="focus-ring rounded-xl bg-forest-900 px-5 py-3 text-[14px] font-semibold text-white transition-colors hover:bg-forest-700 dark:bg-forest-500 dark:hover:bg-forest-300 dark:hover:text-forest-950"
-            >
+            <button type="submit" className="btn btn-primary px-6 py-3">
               Search farmland
             </button>
           </form>
-        </div>
 
-        {hero && (
-          <div>
-            <div className="h-[340px] sm:h-[420px] lg:h-[460px]">
-              <ParcelOverlayCard
-                geometry={hero.geometry}
-                href={`/parcel/${hero.id}`}
-                placeLabel={`${hero.village}, ${hero.tehsil}`}
-                priorityLabel="Jabalpur pilot"
-                pills={[
-                  {
-                    label: "Area",
-                    value: `${formatAcres(hero.areaAcres)} ac`,
-                    at: { x: 0.18, y: 0.14 },
-                  },
-                  {
-                    label: "Water",
-                    value: WATER_LABEL[hero.waterSources[0]],
-                    at: { x: 0.8, y: 0.2 },
-                  },
-                  {
-                    label: "Rent",
-                    value: `${formatINR(hero.listing.rentAnnual, { compact: true })}/yr`,
-                    at: { x: 0.76, y: 0.74 },
-                    tone: "accent",
-                  },
-                ]}
-              />
-            </div>
-            <SatelliteAttribution className="mt-2" />
-          </div>
-        )}
+          {/* Live readout strip */}
+          <dl
+            className="mt-10 flex flex-wrap items-end gap-x-10 gap-y-5 rise"
+            style={{ animationDelay: "260ms" }}
+          >
+            {[
+              { k: "Parcels listed", v: String(all.length) },
+              { k: "Villages covered", v: String(villages) },
+              { k: "Acres on the map", v: formatAcres(totalAcres) },
+            ].map((s) => (
+              <div key={s.k}>
+                <dd className="readout text-xl font-semibold text-ink">{s.v}</dd>
+                <dt className="eyebrow mt-1">{s.k}</dt>
+              </div>
+            ))}
+          </dl>
+        </div>
       </section>
 
-      {/* Nearby parcels */}
-      <Section
-        title="Explore farmland near Jabalpur"
-        description="Active listings within 50 km of the district centre, on real satellite imagery."
-        action={
-          <Link
-            href="/discover"
-            className="focus-ring rounded-md text-[13.5px] font-semibold text-forest-700 hover:underline dark:text-forest-300"
-          >
-            View all on the map →
+      {/* ── Featured parcels ───────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-shell px-4 py-16 sm:px-6 sm:py-20">
+        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <p className="eyebrow">Available now</p>
+            <h2 className="display mt-2 text-xl">Farmland near Jabalpur</h2>
+            <p className="mt-2 max-w-prose text-sm text-ink-muted">
+              Each card shows the parcel at its true location on satellite imagery, with the rent,
+              water source and verification status stated up front.
+            </p>
+          </div>
+          <Link href="/discover" className="btn btn-ghost">
+            Open the map <ArrowRight className="h-4 w-4" />
           </Link>
-        }
-      >
-        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {nearby.map((p) => (
-            <ParcelCard key={p.id} p={p} showMatch={false} />
-          ))}
         </div>
-      </Section>
 
-      {/* Why FarmKaro */}
-      <Section
-        title="Why lease through FarmKaro"
-        description="Leasing land in India runs on trust. We make the trust inspectable."
-      >
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {WHY.map((w) => (
-            <div key={w.title} className="surface rounded-2xl border p-5">
-              <span className="grid h-9 w-9 place-items-center rounded-lg bg-forest-500/12 text-forest-700 dark:text-forest-300">
-                <w.icon className="h-4 w-4" aria-hidden />
-              </span>
-              <h3 className="mt-3.5 text-[15px] font-semibold tracking-tight">{w.title}</h3>
-              <p className="mt-1.5 text-[13.5px] leading-[1.55] muted">{w.body}</p>
+        <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          {featured.map((p, i) => (
+            <div key={p.id} className="rise" style={{ animationDelay: `${i * 55}ms` }}>
+              <ParcelCard p={p} />
             </div>
           ))}
         </div>
-      </Section>
+        <SatelliteAttribution className="mt-6" />
+      </section>
 
-      {/* How it works */}
-      <Section
-        title="How it works"
-        description="From first search to first sowing, every step leaves a paper trail."
-      >
-        <ol className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {/* ── Why ─────────────────────────────────────────────────────────────── */}
+      <section className="border-y border-line bg-surface-2">
+        <div className="mx-auto max-w-shell px-4 py-16 sm:px-6 sm:py-20">
+          <p className="eyebrow">Why lease through FarmKaro</p>
+          <h2 className="display mt-2 max-w-[20ch] text-xl">
+            The paperwork is the product.
+          </h2>
+
+          <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-line bg-line sm:grid-cols-2">
+            {WHY.map((w) => (
+              <div key={w.title} className="bg-surface p-6 sm:p-7">
+                <w.icon className="h-5 w-5 text-brand" aria-hidden />
+                <h3 className="mt-4 text-md font-semibold">{w.title}</h3>
+                <p className="mt-2 max-w-prose text-sm leading-relaxed text-ink-muted">{w.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── How it works ───────────────────────────────────────────────────── */}
+      <section className="mx-auto max-w-shell px-4 py-16 sm:px-6 sm:py-20">
+        <p className="eyebrow">How it works</p>
+        <h2 className="display mt-2 text-xl">Discover → Verify → Lease → Farm</h2>
+
+        <ol className="mt-10 grid gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-4">
           {STEPS.map((s) => (
-            <li key={s.n} className="surface rounded-2xl border p-5">
-              <span className="font-mono text-[12px] font-semibold tabular-nums text-forest-500">
-                {s.n}
-              </span>
-              <h3 className="mt-2 text-[16px] font-semibold tracking-tight">{s.title}</h3>
-              <p className="mt-1.5 text-[13.5px] leading-[1.55] muted">{s.body}</p>
+            <li key={s.n} className="border-t border-line pt-5">
+              <span className="readout text-sm font-semibold text-brand">{s.n}</span>
+              <h3 className="display mt-2 text-lg">{s.t}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-ink-muted">{s.d}</p>
             </li>
           ))}
         </ol>
-      </Section>
 
-      {/* Footer */}
-      <footer className="hairline mt-6 border-t py-8">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-center gap-2">
-            <span className="grid h-6 w-6 place-items-center rounded-md bg-forest-900 text-forest-100">
-              <Sprout className="h-3.5 w-3.5" aria-hidden />
-            </span>
-            <span className="text-[13.5px] font-semibold">FarmKaro</span>
-            <span className="text-[13px] muted">· Jabalpur, Madhya Pradesh</span>
-          </div>
-          <div className="max-w-[52ch] space-y-1.5">
-            <SatelliteAttribution />
-            <p className="text-[10.5px] muted">
-              A FarmKaro review is not a government verification of title.
+        <div className="card ticks mt-14 flex flex-col items-start gap-5 p-8 sm:flex-row sm:items-center sm:justify-between sm:p-10">
+          <div>
+            <h3 className="display text-lg">Own farmland lying idle?</h3>
+            <p className="mt-2 max-w-prose text-sm text-ink-muted">
+              Listing is free for landowners, always. Upload your khasra copy and we read the
+              details straight off it.
             </p>
           </div>
+          <Link href="/list-land" className="btn btn-primary shrink-0 px-6 py-3">
+            List your land <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Footer ─────────────────────────────────────────────────────────── */}
+      <footer className="border-t border-line">
+        <div className="mx-auto max-w-shell px-4 py-10 sm:px-6">
+          <div className="flex flex-wrap items-end justify-between gap-6">
+            <div>
+              <p className="display text-md">FarmKaro</p>
+              <p className="mt-1 text-sm text-ink-muted">
+                Making it safe to lease out farmland — and leased-in land bankable.
+              </p>
+            </div>
+            <p className="max-w-prose text-xs leading-relaxed text-ink-faint">
+              A FarmKaro review confirms documents were submitted and inspected by our team. It is
+              not a government verification of title and does not certify ownership.
+            </p>
+          </div>
+          <p className="mt-8 border-t border-line pt-5 font-mono text-xs text-ink-faint">
+            © {new Date().getFullYear()} FarmKaro · Jabalpur, Madhya Pradesh
+          </p>
         </div>
       </footer>
-    </div>
+    </>
   );
 }

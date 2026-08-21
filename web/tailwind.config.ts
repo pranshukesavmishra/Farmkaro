@@ -1,9 +1,10 @@
 import type { Config } from "tailwindcss";
 
 /**
- * Palette is the FarmKaro brand ramp, anchored on the live site's #003622.
- * Green is used strategically (CTA, active, verified, selected parcel) —
- * the map and satellite imagery stay the most saturated thing on screen.
+ * Colours resolve to CSS variables defined in globals.css, so a single set of
+ * utilities works in both themes. The literal `forest`/`gold` ramp is kept for
+ * places that must stay fixed regardless of theme (chips over satellite
+ * imagery, map markers).
  */
 const config: Config = {
   darkMode: "class",
@@ -11,6 +12,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        canvas: "var(--canvas)",
+        "canvas-2": "var(--canvas-2)",
+        surface: "var(--surface)",
+        "surface-2": "var(--surface-2)",
+        ink: "var(--fg)",
+        "ink-muted": "var(--fg-muted)",
+        "ink-faint": "var(--fg-faint)",
+        line: "var(--line)",
+        "line-strong": "var(--line-strong)",
+        brand: "var(--brand)",
+        "brand-ink": "var(--brand-ink)",
+        "brand-hover": "var(--brand-hover)",
+        positive: "var(--positive)",
+        gold: "var(--gold)",
+        "gold-soft": "var(--gold-soft)",
+        danger: "var(--danger)",
+
+        // Fixed ramp — for elements layered over imagery, where the surrounding
+        // theme must not change the contrast against the photograph.
         forest: {
           950: "#001A10",
           900: "#003622",
@@ -19,27 +39,41 @@ const config: Config = {
           300: "#5FA37F",
           100: "#D9E8DE",
         },
-        ink: "#0A0F0C",
-        charcoal: "#1C211D",
-        "off-white": "#F7F6F2",
-        mute: { 400: "#8A9089", 200: "#E4E3DE" },
-        gold: "#C9A24B",
-        danger: "#B3392E",
       },
       fontFamily: {
+        display: ["var(--font-display)", "Georgia", "serif"],
         sans: ["var(--font-sans)", "system-ui", "sans-serif"],
         mono: ["var(--font-mono)", "ui-monospace", "monospace"],
       },
-      borderRadius: { xl: "0.875rem", "2xl": "1.25rem" },
+      fontSize: {
+        xs: "var(--t-xs)",
+        sm: "var(--t-sm)",
+        base: "var(--t-base)",
+        md: "var(--t-md)",
+        lg: "var(--t-lg)",
+        xl: "var(--t-xl)",
+        "2xl": "var(--t-2xl)",
+        "3xl": "var(--t-3xl)",
+      },
+      borderRadius: {
+        DEFAULT: "10px",
+        lg: "var(--radius)",
+        xl: "var(--radius)",
+        "2xl": "var(--radius-lg)",
+      },
+      boxShadow: {
+        sm: "var(--shadow-sm)",
+        md: "var(--shadow-md)",
+        lg: "var(--shadow-lg)",
+      },
+      maxWidth: {
+        prose: "68ch",
+        shell: "1400px",
+      },
       keyframes: {
-        "fade-up": {
-          "0%": { opacity: "0", transform: "translateY(10px)" },
-          "100%": { opacity: "1", transform: "none" },
-        },
         shimmer: { "100%": { transform: "translateX(100%)" } },
       },
       animation: {
-        "fade-up": "fade-up .5s cubic-bezier(.22,.61,.36,1) both",
         shimmer: "shimmer 1.6s infinite",
       },
     },
