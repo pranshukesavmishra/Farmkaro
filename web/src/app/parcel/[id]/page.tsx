@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ArrowLeft } from "lucide-react";
 import { ParcelOverlayCard, SatelliteAttribution } from "@/components/parcel-overlay-card";
 import { ParcelActions } from "@/components/parcel-actions";
 import {
@@ -12,6 +13,7 @@ import {
 import { getRepository } from "@/lib/repo";
 import { formatAcres, formatDistance, formatINR } from "@/lib/geo";
 import { ROAD_LABEL, WATER_LABEL } from "@/lib/types";
+import { cn } from "@/lib/cn";
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
@@ -33,12 +35,79 @@ export async function generateStaticParams() {
 
 export const dynamicParams = false;
 
+/** One line of the survey table: label left, value right, measures in mono. */
+interface Row {
+  label: string;
+  value: string;
+  /** The value itself is a measurement, so it is set as instrument output. */
+  mono?: boolean;
+  /** A measured tail hung off a written value ("Pucca road · 400 m away"). */
+  note?: string;
+}
+
+function SurveyTable({ rows }: { rows: Row[] }) {
+  return (
+    <dl className="border-b border-line">
+      {rows.map((r) => (
+        <div
+          key={r.label}
+          className="border-t border-line py-4 sm:grid sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)] sm:items-baseline sm:gap-x-8"
+        >
+          <dt className="eyebrow">{r.label}</dt>
+          <dd className={cn("mt-1.5 text-base sm:mt-0", r.mono && "readout")}>
+            {r.value}
+            {r.note && (
+              <span className="readout ml-2.5 text-sm text-ink-muted">
+                <span aria-hidden className="mr-2.5 text-ink-faint">
+                  ·
+                </span>
+                {r.note}
+              </span>
+            )}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** A glass chip floating over the satellite hero. */
+function HeroChip({
+  label,
+  value,
+  tone = "default",
+}: {
+  label: string;
+  value: string;
+  tone?: "default" | "measure" | "rent";
+}) {
+  return (
+    <div className="glass flex items-baseline gap-2.5 rounded-full px-3.5 py-2">
+      <dt className="font-mono text-xs uppercase tracking-[0.12em] text-white/60">{label}</dt>
+      <dd
+        className={cn(
+          "text-sm font-semibold text-white",
+          tone !== "default" && "readout",
+          tone === "rent" && "text-gold",
+        )}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+/** A card in the sticky action rail. */
+function Panel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("card p-5 sm:p-6", className)}>{children}</div>;
+}
+
 export default async function ParcelPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const p = await getRepository().byId(id);
   if (!p) notFound();
 
-  const attrs: { label: string; value: string }[] = [
+  const landRows: Row[] = [
     { label: "Soil", value: p.soilType },
     { label: "Water sources", value: p.waterSources.map((w) => WATER_LABEL[w]).join(", ") },
     {
@@ -46,23 +115,30 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
       value: p.irrigatedAcres
         ? `${formatAcres(p.irrigatedAcres)} of ${formatAcres(p.areaAcres)} acres`
         : "Not irrigated",
+      mono: Boolean(p.irrigatedAcres),
     },
     {
       label: "Electricity",
-      value: p.electricity ? `Yes · ${p.electricityHours ?? 0} hrs/day` : "No connection",
+      value: p.electricity ? "Yes" : "No connection",
+      note: p.electricity ? `${p.electricityHours ?? 0} hrs/day` : undefined,
     },
     {
       label: "Road access",
-      value: `${ROAD_LABEL[p.roadAccess]} · ${formatDistance(p.roadDistanceM)} away`,
+      value: ROAD_LABEL[p.roadAccess],
+      note: `${formatDistance(p.roadDistanceM)} away`,
     },
     { label: "Previous crops", value: p.previousCrops.join(", ") || "—" },
     { label: "Suitable crops", value: p.suitableCrops.join(", ") || "—" },
+  ];
+
+  const leaseRows: Row[] = [
     {
       label: "Lease term",
       value: `${p.listing.leaseMinYears}–${p.listing.leaseMaxYears} years`,
+      mono: true,
     },
-    { label: "Available from", value: fmtDate(p.listing.availableFrom) },
-    { label: "Deposit", value: formatINR(p.listing.deposit) },
+    { label: "Available from", value: fmtDate(p.listing.availableFrom), mono: true },
+    { label: "Deposit", value: formatINR(p.listing.deposit), mono: true },
     {
       label: "Crop restrictions",
       value: p.listing.cropRestrictions.length ? p.listing.cropRestrictions.join(", ") : "None",
@@ -71,157 +147,290 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
 
   const reviewedDocs = p.documents.filter((d) => d.status === "reviewed_by_farmkaro").length;
 
+  // Comparable band. The domain stretches to include this listing's own rent so
+  // an asking price outside the transacted range is shown honestly, not clamped
+  // back inside it.
+  const c = p.comparables;
+  const ask = p.listing.rentPerAcre;
+  const domainMin = Math.min(c.lowPerAcre, ask);
+  const domainMax = Math.max(c.highPerAcre, ask);
+  const span = Math.max(1, domainMax - domainMin);
+  const at = (v: number) => ((v - domainMin) / span) * 100;
+
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-6 sm:px-6 sm:py-8">
-      {/* Hero imagery */}
-      <div className="h-[380px] sm:h-[460px]">
-        <ParcelOverlayCard
-          geometry={p.geometry}
-          placeLabel={`${p.village}, ${p.tehsil}`}
-          boundaryConfirmed={
-            p.geometryStatus === "boundary_walked_by_farmkaro" ||
-            p.geometryStatus === "matched_to_cadastral_record"
-          }
-          pad={1.9}
-          pills={[
-            { label: "Area", value: `${formatAcres(p.areaAcres)} ac`, at: { x: 0.14, y: 0.12 } },
-            { label: "Water", value: WATER_LABEL[p.waterSources[0]], at: { x: 0.86, y: 0.14 } },
-            {
-              label: "Rent",
-              value: `${formatINR(p.listing.rentAnnual, { compact: true })}/yr`,
-              at: { x: 0.13, y: 0.82 },
-              tone: "accent",
-            },
-            ...(p.irrigatedAcres
-              ? [
-                  {
-                    label: "Irrigated",
-                    value: `${formatAcres(p.irrigatedAcres)} ac`,
-                    at: { x: 0.86, y: 0.8 },
-                  } as const,
-                ]
-              : []),
-          ]}
+    <article>
+      {/* ── Hero: the land itself, edge to edge ─────────────────────────────── */}
+      <section className="relative isolate flex min-h-[440px] flex-col overflow-hidden sm:min-h-[560px]">
+        <div className="absolute inset-0 -z-10">
+          <ParcelOverlayCard
+            geometry={p.geometry}
+            placeLabel={`${p.village}, ${p.tehsil}`}
+            boundaryConfirmed={
+              p.geometryStatus === "boundary_walked_by_farmkaro" ||
+              p.geometryStatus === "matched_to_cadastral_record"
+            }
+            pad={2.6}
+            rounded="rounded-none"
+            className="h-full w-full"
+          />
+        </div>
+
+        {/* Scrim: type stays legible, the land still reads through it. */}
+        <div
+          className="pointer-events-none absolute inset-0 -z-10"
+          style={{
+            background:
+              "linear-gradient(to top, var(--canvas) 0%, color-mix(in srgb, var(--canvas) 74%, transparent) 22%, color-mix(in srgb, var(--canvas) 12%, transparent) 52%, transparent 78%)",
+          }}
         />
-      </div>
-      <SatelliteAttribution className="mt-2" />
 
-      <div className="mt-8 grid gap-8 lg:grid-cols-[2fr_1fr]">
-        {/* Left column */}
-        <div className="min-w-0">
-          <h1 className="text-[26px] font-semibold tracking-tight sm:text-[32px]">
-            {formatAcres(p.areaAcres)} acres in {p.village}
-          </h1>
-          <p className="mt-1.5 font-mono text-[12.5px] tabular-nums muted">
-            {p.ref} · Khasra {p.khasraNumber}
-            {p.ulpin ? ` · ULPIN ${p.ulpin}` : ""}
-          </p>
+        <div className="mx-auto flex w-full max-w-shell flex-1 flex-col px-4 pb-10 pt-6 sm:px-6 sm:pb-14">
+          <Link
+            href="/discover"
+            className="glass focus-ring inline-flex w-fit items-center gap-2 rounded-full px-3.5 py-2 text-sm font-medium text-white/85 transition-colors hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+            Discovery map
+          </Link>
 
-          <p className="mt-5 max-w-[68ch] text-[15px] leading-[1.65]">{p.listing.description}</p>
-
-          <dl className="mt-7 grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
-            {attrs.map((a) => (
-              <div key={a.label} className="hairline border-b pb-3">
-                <dt className="text-[11px] font-medium uppercase tracking-[0.09em] muted">
-                  {a.label}
-                </dt>
-                <dd className="mt-1 text-[14px] font-medium">{a.value}</dd>
-              </div>
-            ))}
-          </dl>
-
-          {/* Rent comparables */}
-          <div className="surface mt-8 rounded-xl border p-5">
-            <h2 className="text-[15px] font-semibold tracking-tight">Rent comparables</h2>
-            {p.comparables.count > 0 ? (
-              <p className="mt-2 text-[14px] leading-[1.6]">
-                Based on <strong className="font-semibold">{p.comparables.count}</strong> completed
-                lease{p.comparables.count === 1 ? "" : "s"} nearby:{" "}
-                <span className="font-mono font-semibold tabular-nums">
-                  {formatINR(p.comparables.lowPerAcre)}–{formatINR(p.comparables.highPerAcre)}
-                </span>
-                /acre/yr
-              </p>
-            ) : (
-              <p className="mt-2 text-[14px] leading-[1.6] muted">
-                No completed leases nearby yet — no estimate shown.
-              </p>
-            )}
-            <p className="mt-2 text-[12px] muted">
-              Comparables come only from leases completed on FarmKaro. Where none exist, we do not
-              invent an estimate.
+          <div className="mt-auto pt-20">
+            <p
+              className="fade-in font-mono text-xs uppercase tracking-[0.14em] text-white/65"
+              style={{ animationDelay: "80ms" }}
+            >
+              {p.tehsil} tehsil · {p.district}, {p.state}
             </p>
-          </div>
-        </div>
 
-        {/* Right column */}
-        <div className="space-y-5 lg:sticky lg:top-20 lg:self-start">
-          {/* Price + CTA */}
-          <div className="surface rounded-2xl border p-5">
-            <div className="flex items-baseline gap-2">
-              <span className="font-mono text-[26px] font-semibold tabular-nums tracking-tight">
-                {formatINR(p.listing.rentAnnual)}
-              </span>
-              <span className="text-[13px] muted">/ year</span>
-            </div>
-            <p className="mt-1 text-[13px] muted">
-              {formatINR(p.listing.rentPerAcre)}/acre · deposit {formatINR(p.listing.deposit)}
+            <h1
+              className="display rise mt-3 max-w-[16ch] text-2xl text-white"
+              style={{ animationDelay: "120ms", textShadow: "0 2px 28px rgba(0,0,0,0.45)" }}
+            >
+              {p.village}
+            </h1>
+
+            <p
+              className="readout fade-in mt-3 text-sm text-white/70"
+              style={{ animationDelay: "180ms" }}
+            >
+              {p.ref} · Khasra {p.khasraNumber}
+              {p.ulpin ? ` · ULPIN ${p.ulpin}` : ""}
             </p>
-            <div className="mt-4">
-              <ParcelActions
-                parcelId={p.id}
-                rentAnnual={p.listing.rentAnnual}
-                village={p.village}
+
+            <dl
+              className="rise mt-7 flex flex-wrap gap-2"
+              style={{ animationDelay: "220ms" }}
+            >
+              <HeroChip label="Area" value={`${formatAcres(p.areaAcres)} ac`} tone="measure" />
+              <HeroChip
+                label="Rent"
+                value={`${formatINR(p.listing.rentAnnual, { compact: true })}/yr`}
+                tone="rent"
               />
-            </div>
+              <HeroChip label="Water" value={p.waterSources.map((w) => WATER_LABEL[w]).join(" + ")} />
+              {p.irrigatedAcres ? (
+                <HeroChip
+                  label="Irrigated"
+                  value={`${formatAcres(p.irrigatedAcres)} ac`}
+                  tone="measure"
+                />
+              ) : null}
+              <HeroChip label="Road" value={ROAD_LABEL[p.roadAccess]} />
+            </dl>
           </div>
+        </div>
+      </section>
 
-          {/* Owner */}
-          <div className="surface rounded-2xl border p-5">
-            <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] muted">
-              Listed by
-            </h2>
-            <p className="mt-2 text-[15px] font-semibold tracking-tight">{p.owner.name}</p>
-            <div className="mt-2">
-              <IdentityBadge status={p.owner.identityStatus} />
-            </div>
-            <p className="mt-3 text-[13px] muted">
-              Member since {new Date(p.owner.memberSince).getFullYear()}
-            </p>
-            {p.owner.ratingCount > 0 && p.owner.rating != null ? (
-              <p className="mt-1 text-[13px]">
-                {p.owner.completedLeases} completed lease
-                {p.owner.completedLeases === 1 ? "" : "s"} ·{" "}
-                <span className="font-mono tabular-nums">{p.owner.rating.toFixed(1)}</span> ★ (
-                {p.owner.ratingCount})
+      {/* ── Body: the story and the data, beside the desk ───────────────────── */}
+      <div className="mx-auto max-w-shell px-4 pb-16 pt-8 sm:px-6 sm:pb-24 sm:pt-10">
+        <SatelliteAttribution className="text-xs text-ink-faint" />
+
+        <div className="mt-10 grid gap-x-14 gap-y-14 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,23rem)]">
+          {/* Left — the record */}
+          <div className="min-w-0 space-y-14 sm:space-y-16">
+            <section className="rise">
+              <p className="eyebrow">Description</p>
+              <p className="mt-3 max-w-prose text-md leading-relaxed">{p.listing.description}</p>
+            </section>
+
+            <section className="rise" style={{ animationDelay: "60ms" }}>
+              <h2 className="display text-lg">The land</h2>
+              <div className="mt-5">
+                <SurveyTable rows={landRows} />
+              </div>
+            </section>
+
+            <section className="rise" style={{ animationDelay: "110ms" }}>
+              <h2 className="display text-lg">Lease terms</h2>
+              <div className="mt-5">
+                <SurveyTable rows={leaseRows} />
+              </div>
+              <p className="mt-4 max-w-prose text-sm leading-relaxed text-ink-faint">
+                Leases are executed under the state framework: a fixed term, possession reverting on
+                expiry, and no tenancy or occupancy rights created.
               </p>
-            ) : (
-              <p className="mt-1 text-[13px] muted">No completed leases yet</p>
-            )}
+            </section>
+
+            {/* Rent comparables — wording unchanged, on purpose. */}
+            <section className="card ticks rise p-5 sm:p-7" style={{ animationDelay: "160ms" }}>
+              <p className="eyebrow">Market</p>
+              <h2 className="display mt-2 text-lg">Rent comparables</h2>
+
+              {c.count > 0 ? (
+                <>
+                  <p className="mt-4 max-w-prose text-md leading-relaxed">
+                    Based on <strong className="readout font-semibold">{c.count}</strong> completed
+                    lease{c.count === 1 ? "" : "s"} nearby:{" "}
+                    <span className="readout font-semibold text-gold">
+                      {formatINR(c.lowPerAcre)}–{formatINR(c.highPerAcre)}
+                    </span>
+                    /acre/yr
+                  </p>
+
+                  {/* The transacted band, with this listing marked on the same
+                      scale. Both endpoints are real; nothing is interpolated. */}
+                  <div className="mt-7">
+                    <div className="relative h-1.5 rounded-full bg-line">
+                      <div
+                        className="absolute inset-y-0 rounded-full bg-gold"
+                        style={{ left: `${at(c.lowPerAcre)}%`, right: `${100 - at(c.highPerAcre)}%` }}
+                      />
+                      <div
+                        aria-hidden
+                        className="absolute -top-1.5 h-[18px] w-[2px] rounded-full bg-brand"
+                        style={{ left: `${at(ask)}%`, transform: "translateX(-50%)" }}
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1.5">
+                      <span className="readout text-xs text-ink-faint">
+                        {formatINR(domainMin)}/ac
+                      </span>
+                      <span className="text-xs text-ink-muted">
+                        <span className="mr-1.5 inline-block h-2 w-[2px] translate-y-[1px] rounded-full bg-brand align-middle" />
+                        This listing asks{" "}
+                        <span className="readout text-ink">{formatINR(ask)}</span>/acre
+                      </span>
+                      <span className="readout text-xs text-ink-faint">
+                        {formatINR(domainMax)}/ac
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <p className="mt-4 max-w-prose text-md leading-relaxed text-ink-muted">
+                  No completed leases nearby yet — no estimate shown.
+                </p>
+              )}
+
+              <p className="mt-5 max-w-prose border-t border-line pt-4 text-sm leading-relaxed text-ink-faint">
+                Comparables come only from leases completed on FarmKaro. Where none exist, we do not
+                invent an estimate.
+              </p>
+            </section>
           </div>
 
-          {/* Verification */}
-          <div className="surface rounded-2xl border p-5">
-            <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] muted">
-              Verification
-            </h2>
-            <div className="mt-3">
-              <GeometryLadder status={p.geometryStatus} />
-            </div>
-            <h3 className="hairline mt-4 border-t pt-4 text-[13px] font-semibold uppercase tracking-[0.08em] muted">
-              Documents · {reviewedDocs} of {p.documents.length} reviewed
-            </h3>
-            <DocumentList docs={p.documents} />
-            <VerificationDisclaimer className="hairline mt-3 border-t pt-4" />
-          </div>
+          {/* Right — the action rail */}
+          <aside className="thin-scroll space-y-5 lg:sticky lg:top-24 lg:max-h-[calc(100vh-7.5rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
+            {/* Price + CTA */}
+            <Panel className="ticks">
+              <p className="eyebrow">Asking rent</p>
+              <p className="mt-2.5 flex flex-wrap items-baseline gap-x-2">
+                <span className="readout text-xl font-semibold">
+                  {formatINR(p.listing.rentAnnual)}
+                </span>
+                <span className="text-sm text-ink-muted">/ year</span>
+              </p>
 
-          <p className="text-[12px] muted">
-            <Link href="/discover" className="focus-ring rounded font-medium hover:underline">
-              ← Back to discovery
-            </Link>
-          </p>
+              <dl className="mt-4 space-y-2.5 border-t border-line pt-4 text-sm">
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="text-ink-muted">Per acre</dt>
+                  <dd className="readout font-medium">{formatINR(p.listing.rentPerAcre)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="text-ink-muted">Deposit</dt>
+                  <dd className="readout font-medium">{formatINR(p.listing.deposit)}</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="text-ink-muted">Available from</dt>
+                  <dd className="readout font-medium">{fmtDate(p.listing.availableFrom)}</dd>
+                </div>
+              </dl>
+
+              <div className="mt-5">
+                <ParcelActions
+                  parcelId={p.id}
+                  rentAnnual={p.listing.rentAnnual}
+                  village={p.village}
+                />
+              </div>
+            </Panel>
+
+            {/* Owner */}
+            <Panel>
+              <p className="eyebrow">Listed by</p>
+              <h2 className="display mt-2 text-md">{p.owner.name}</h2>
+              <div className="mt-3">
+                <IdentityBadge status={p.owner.identityStatus} />
+              </div>
+
+              <dl className="mt-4 space-y-2.5 border-t border-line pt-4 text-sm">
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="text-ink-muted">Member since</dt>
+                  <dd className="readout font-medium">
+                    {new Date(p.owner.memberSince).getFullYear()}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-4">
+                  <dt className="text-ink-muted">Completed leases</dt>
+                  <dd className="readout font-medium">{p.owner.completedLeases}</dd>
+                </div>
+                {p.owner.ratingCount > 0 && p.owner.rating != null ? (
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt className="text-ink-muted">Rating</dt>
+                    <dd className="readout font-medium">
+                      {p.owner.rating.toFixed(1)} ★{" "}
+                      <span className="text-ink-faint">({p.owner.ratingCount})</span>
+                    </dd>
+                  </div>
+                ) : (
+                  <div className="flex items-baseline justify-between gap-4">
+                    <dt className="text-ink-muted">Rating</dt>
+                    <dd className="text-ink-faint">No completed leases yet</dd>
+                  </div>
+                )}
+              </dl>
+            </Panel>
+
+            {/* Verification ladder + documents — copy unchanged, on purpose. */}
+            <Panel>
+              <p className="eyebrow">Where this parcel stands</p>
+              <h2 className="display mt-2 text-md">Verification</h2>
+
+              <div className="mt-3">
+                <GeometryLadder status={p.geometryStatus} />
+              </div>
+
+              <h3 className="eyebrow mt-4 border-t border-line pt-4">
+                Documents · {reviewedDocs} of {p.documents.length} reviewed
+              </h3>
+              <div className="mt-1">
+                <DocumentList docs={p.documents} />
+              </div>
+
+              <VerificationDisclaimer className="mt-4 border-t border-line pt-4" />
+            </Panel>
+
+            <p>
+              <Link
+                href="/discover"
+                className="focus-ring inline-flex items-center gap-2 rounded text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+              >
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                Back to discovery
+              </Link>
+            </p>
+          </aside>
         </div>
       </div>
-    </div>
+    </article>
   );
 }
