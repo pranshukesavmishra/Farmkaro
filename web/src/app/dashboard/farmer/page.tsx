@@ -252,21 +252,20 @@ export default async function FarmerDashboardPage() {
           <PrefChip label="Radius" value="25 km · Jabalpur" />
           <Link
             href="/discover?radiusKm=25"
-            className="focus-ring inline-flex items-center gap-1.5 rounded text-sm font-semibold text-brand transition-[gap] hover:gap-2.5"
+            className="focus-ring -my-1.5 inline-flex min-h-[24px] items-center gap-1.5 rounded py-1.5 text-sm font-semibold text-brand transition-[gap] hover:gap-2.5"
           >
             Adjust in Discover <ArrowRight className="h-3.5 w-3.5" aria-hidden />
           </Link>
         </div>
 
         {top ? (
-          <article className="card overflow-hidden rise" style={{ animationDelay: "60ms" }}>
+          <article className="card group relative overflow-hidden rise" style={{ animationDelay: "60ms" }}>
             <div className="grid lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
               {/* Imagery: the loudest thing on the page, by design. */}
               <div className="relative min-h-[300px] sm:min-h-[380px] lg:min-h-[500px]">
                 <div className="absolute inset-0">
                   <ParcelOverlayCard
                     geometry={top.geometry}
-                    href={`/parcel/${top.id}`}
                     rounded="rounded-none"
                     className="h-full w-full"
                     priorityLabel="Top match"
@@ -298,7 +297,10 @@ export default async function FarmerDashboardPage() {
                 <div>
                   <p className="eyebrow">Best match today</p>
                   <h3 className="display mt-2 text-lg">
-                    <Link href={`/parcel/${top.id}`} className="focus-ring hover:text-brand">
+                    <Link
+                      href={`/parcel/${top.id}`}
+                      className="stretch-link focus-ring hover:text-brand"
+                    >
                       {formatAcres(top.areaAcres)} acres in {top.village}
                     </Link>
                   </h3>
@@ -332,9 +334,11 @@ export default async function FarmerDashboardPage() {
                   <MatchScore score={top.match.score} breakdown={top.match.breakdown} />
                 )}
 
-                <Link href={`/parcel/${top.id}`} className="btn btn-primary mt-auto self-start">
-                  Open parcel <ArrowRight className="h-4 w-4" aria-hidden />
-                </Link>
+                {/* Not a link: the title's link already covers the whole
+                    panel, so this is the affordance for it. */}
+                <span aria-hidden className="btn btn-primary mt-auto self-start">
+                  Open parcel <ArrowRight className="h-4 w-4" />
+                </span>
               </div>
             </div>
           </article>
@@ -456,7 +460,7 @@ export default async function FarmerDashboardPage() {
                       <td className="whitespace-nowrap px-5 py-4">
                         <Link
                           href={`/parcel/${l.parcelId}`}
-                          className="focus-ring rounded font-medium text-ink hover:text-brand"
+                          className="focus-ring -my-1 inline-block min-h-[24px] rounded py-1 font-medium text-ink hover:text-brand"
                         >
                           {l.village}
                         </Link>

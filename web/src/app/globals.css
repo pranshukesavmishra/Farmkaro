@@ -277,6 +277,19 @@ body {
     box-shadow: var(--shadow-md);
   }
 
+  /* A card that lifts on hover promises the whole card is the target. Rather
+     than wrapping the card in one giant anchor — or, worse, repeating the same
+     link on the image, the title and a CTA — the title's link stretches to
+     cover the card. One link, one accessible name, the whole surface clickable.
+     The card itself must be positioned for this to work. */
+  .stretch-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+  }
+
   .ticks::before,
   .ticks::after {
     content: "";

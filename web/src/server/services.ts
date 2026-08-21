@@ -441,8 +441,20 @@ export function setRegistrationStatus(user: SessionUser, leaseId: string, to: st
     | undefined;
   if (!lease) throw new AuthError(404, "Lease not found.");
   const parcel = getParcelRow(lease.parcel_id)!;
-  const party = lease.lessee_id === user.id || lease.lessor_id === user.id || isOwnerOfParcel(user, parcel);
-  if (!party) throw new AuthError(403, "You are not a party to this lease.");
+  // Registration is a landowner-side record, not a shared one. The lessee is a
+  // party to the lease but must not be able to assert that it is registered:
+  // the whole point of showing this field is that "stamped" is not
+  // "registered", and a self-attested flag either side can set would make that
+  // claim meaningless.
+  const isLessorSide = lease.lessor_id === user.id || isOwnerOfParcel(user, parcel);
+  if (!isLessorSide) {
+    throw new AuthError(
+      403,
+      lease.lessee_id === user.id
+        ? "Only the landowner's side records registration."
+        : "You are not a party to this lease.",
+    );
+  }
   // Registration only moves forward: a registered lease never silently
   // becomes unregistered.
   if (REGISTRATION_ORDER.indexOf(to) < REGISTRATION_ORDER.indexOf(lease.registration_status))

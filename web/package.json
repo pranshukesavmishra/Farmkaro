@@ -10,7 +10,10 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "audit:ui": "node scripts/audit-ui.mjs",
-    "verify:flows": "node scripts/verify-flows.mjs"
+    "verify:flows": "node scripts/verify-flows.mjs",
+    "audit:mobile": "node scripts/audit-mobile.mjs",
+    "audit:links": "node scripts/audit-links.mjs",
+    "verify:all": "node scripts/verify-all.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

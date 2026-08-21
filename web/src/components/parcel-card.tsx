@@ -22,11 +22,10 @@ export function ParcelCard({
   const irrigated = !p.waterSources.includes("rainfed");
 
   return (
-    <article className={cn("card card-lift group overflow-hidden", className)}>
+    <article className={cn("card card-lift group relative overflow-hidden", className)}>
       <div className="relative h-[176px] overflow-hidden">
         <ParcelOverlayCard
           geometry={p.geometry}
-          href={`/parcel/${p.id}`}
           rounded="rounded-none"
           pad={2.3}
           pills={
@@ -46,7 +45,7 @@ export function ParcelCard({
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="display truncate text-md">
-              <Link href={`/parcel/${p.id}`} className="focus-ring hover:text-brand">
+              <Link href={`/parcel/${p.id}`} className="stretch-link focus-ring hover:text-brand">
                 {p.village}
               </Link>
             </h3>

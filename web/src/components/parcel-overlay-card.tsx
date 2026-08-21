@@ -1,7 +1,6 @@
 "use client";
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { buildTileFrame, bboxOf, tileUrl, type PolygonCoords, type Position } from "@/lib/geo";
 import { cn } from "@/lib/cn";
 
@@ -19,7 +18,6 @@ interface Props {
   geometry: PolygonCoords;
   placeLabel?: string;
   pills?: StatPill[];
-  href?: string;
   className?: string;
   /** Camera padding: higher pulls back and shows more surrounding land. */
   pad?: number;
@@ -47,7 +45,6 @@ export function ParcelOverlayCard({
   geometry,
   placeLabel,
   pills = [],
-  href,
   className,
   pad = 2.1,
   rounded = "rounded-2xl",
@@ -96,7 +93,7 @@ export function ParcelOverlayCard({
     );
   }, [frame, geometry, boundaryConfirmed]);
 
-  const body = (
+  return (
     <div
       ref={ref}
       className={cn(
@@ -228,13 +225,6 @@ export function ParcelOverlayCard({
 
       {children && <div className="absolute inset-x-0 bottom-0 z-10">{children}</div>}
     </div>
-  );
-
-  if (!href) return body;
-  return (
-    <Link href={href} className="focus-ring block h-full w-full rounded-2xl">
-      {body}
-    </Link>
   );
 }
 

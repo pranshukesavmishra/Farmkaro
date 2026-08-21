@@ -202,6 +202,22 @@ describe("lease lifecycle", () => {
     expect(() => setRegistrationStatus(stranger, leaseId, "registered")).toThrowError(/not a party/);
   });
 
+  it("only the landowner's side records registration, never the lessee", () => {
+    const leaseId = freshLease();
+    // The lessee is a party to the lease — they can drive its state — but a
+    // self-attested "registered" from the tenant's side would make the whole
+    // stamped-is-not-registered distinction meaningless.
+    expect(() => advanceLease(farmer, leaseId, "terms_agreed")).not.toThrow();
+    expect(() => setRegistrationStatus(farmer, leaseId, "stamped")).toThrowError(
+      /landowner's side/,
+    );
+    const row = db().prepare("SELECT registration_status FROM leases WHERE id = ?").get(leaseId) as {
+      registration_status: string;
+    };
+    expect(row.registration_status).not.toBe("stamped");
+    expect(() => setRegistrationStatus(owner, leaseId, "stamped")).not.toThrow();
+  });
+
   it("refuses a second live lease on the same parcel", () => {
     const p = nextParcel();
     const otherFarmer = makeUser("other"); // dedicated, so global visibility asserts stay valid

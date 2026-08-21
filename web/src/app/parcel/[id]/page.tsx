@@ -430,7 +430,7 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
             <p>
               <Link
                 href="/discover"
-                className="focus-ring inline-flex items-center gap-2 rounded text-sm font-medium text-ink-muted transition-colors hover:text-ink"
+                className="focus-ring -my-1.5 inline-flex min-h-[24px] items-center gap-2 rounded py-1.5 text-sm font-medium text-ink-muted transition-colors hover:text-ink"
               >
                 <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
                 Back to discovery

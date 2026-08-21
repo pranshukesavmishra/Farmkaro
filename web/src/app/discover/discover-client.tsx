@@ -322,11 +322,6 @@ export function DiscoverClient() {
             </select>
           </div>
 
-          {/* Legend on mobile lives above the list */}
-          <div className="mt-4 lg:hidden">
-            <MapLegend />
-          </div>
-
           {/* Selected parcel strip */}
           {selected && (
             <div
@@ -410,7 +405,10 @@ export function DiscoverClient() {
             radiusKm={radiusKm}
             className="relative h-[calc(100dvh-180px)] w-full lg:min-h-0 lg:flex-1"
           />
-          <div className="hidden border-t border-line px-5 py-3 lg:block">
+          {/* The legend explains the map's pills, so it lives with the map —
+              on mobile that means the map view, not the list view. The extra
+              bottom padding keeps it clear of the floating view toggle. */}
+          <div className="border-t border-line px-5 pb-20 pt-3 lg:pb-3">
             <MapLegend />
           </div>
         </div>

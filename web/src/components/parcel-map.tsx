@@ -154,6 +154,11 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // A stable signature for the parcel set. The parent rebuilds its filtered
+  // array on every render, and keying the camera off that identity made the
+  // map re-animate whenever anything else on the page changed.
+  const parcelKey = parcels.map((p) => p.id).join(",");
+
   // Markers: one price pill per parcel, reconciled on each data change.
   useEffect(() => {
     const m = map.current;
@@ -176,7 +181,10 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
         el.dataset.id = p.id;
         el.setAttribute("aria-label", `${p.village}, ${formatINR(p.listing.rentAnnual)} per year`);
         el.className = "fk-marker";
-        el.innerHTML = `<span class="fk-marker-pill">${compactRent(p.listing.rentAnnual)}</span><span class="fk-marker-tip"></span>`;
+        el.innerHTML =
+          `<span class="fk-marker-pill">${compactRent(p.listing.rentAnnual)}</span>` +
+          `<span class="fk-marker-dot"></span>` +
+          `<span class="fk-marker-tip"></span>`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           onSelect?.(p.id);
@@ -196,7 +204,89 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
       for (const p of parcels) b.extend(p.centroid as [number, number]);
       m.fitBounds(b, { padding: 70, maxZoom: 13.5, duration: 650 });
     }
-  }, [parcels, ready, onSelect]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parcelKey, ready, onSelect]);
+
+  /**
+   * Declutter. Price pills are HTML markers, so MapLibre's symbol collision
+   * detection does not apply to them: at a district-wide zoom — and at any
+   * zoom on a phone — neighbouring parcels stack their prices into an
+   * unreadable pile. Each frame, walk the markers and collapse any whose label
+   * would overlap one already placed. A collapsed marker becomes a dot rather
+   * than disappearing: the parcel is still visible, still tappable, and zooming
+   * in restores its price.
+   */
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+
+    const PAD = 3; // a little breathing room, so pills never touch
+
+    const declutter = () => {
+      // Measure what is actually on screen rather than re-projecting the
+      // coordinates: MapLibre composes a marker's position from its own
+      // transform, so a second projection can disagree with the pixels the
+      // reader sees. Two passes — expand everything, then measure — so the
+      // rectangles are all full-size pills and comparable.
+      const entries = [...markers.current.entries()];
+      for (const [, mk] of entries) mk.getElement().classList.remove("is-collapsed");
+
+      const boxes = entries
+        .map(([id, mk]) => ({ id, el: mk.getElement(), r: mk.getElement().getBoundingClientRect() }))
+        .filter((x) => x.r.width > 0 && x.r.height > 0)
+        // The selected parcel keeps its price whatever else is on screen; the
+        // rest resolve top-to-bottom, which stays stable as the map moves.
+        .sort((a, b) => {
+          if (a.id === selectedId) return -1;
+          if (b.id === selectedId) return 1;
+          return a.r.top - b.r.top;
+        });
+
+      const placed: DOMRect[] = [];
+      for (const { id, el, r } of boxes) {
+        const hit = placed.some(
+          (q) =>
+            r.left < q.right + PAD &&
+            r.right + PAD > q.left &&
+            r.top < q.bottom + PAD &&
+            r.bottom + PAD > q.top,
+        );
+        if (hit && id !== selectedId) el.classList.add("is-collapsed");
+        else placed.push(r);
+      }
+    };
+
+    // "render" rather than "move": an eased camera (fitBounds, double-tap zoom)
+    // finishes with frames that "move" does not cover, and deferring the pass
+    // to the next animation frame leaves it a frame behind the pixels — enough
+    // to let a hairline overlap through. The pass is a few dozen rect reads, so
+    // it runs synchronously with the frame that draws them.
+    // MapLibre commits marker transforms around the frame it emits "render"
+    // on, so a pass that runs synchronously with that event can read the
+    // previous frame's positions. Running during motion keeps labels roughly
+    // right; a pass on the next animation frame after the camera settles is
+    // what makes the final state exact.
+    let settle = 0;
+    const settleLater = () => {
+      cancelAnimationFrame(settle);
+      settle = requestAnimationFrame(() => requestAnimationFrame(declutter));
+    };
+
+    declutter();
+    settleLater();
+    m.on("render", declutter);
+    m.on("moveend", settleLater);
+    m.on("zoomend", settleLater);
+    m.on("idle", settleLater);
+    return () => {
+      cancelAnimationFrame(settle);
+      m.off("render", declutter);
+      m.off("moveend", settleLater);
+      m.off("zoomend", settleLater);
+      m.off("idle", settleLater);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [parcelKey, ready, selectedId]);
 
   // Radius ring.
   useEffect(() => {
@@ -278,6 +368,22 @@ const MARKER_CSS = `
 .fk-marker.is-hover .fk-marker-pill { background: #0B4A32; }
 .fk-marker-tip { width: 2px; height: 8px; background: rgba(255,255,255,.85); box-shadow: 0 1px 3px rgba(0,0,0,.5); }
 .fk-marker.is-selected .fk-marker-tip { background: #C9A24B; }
+
+/* Collapsed: at a zoom where this pill would sit on top of another, it becomes
+   a dot. The parcel stays visible and tappable — it is not hidden — and the
+   prices that are shown stay readable.
+
+   The pill keeps its space and only loses its paint. MapLibre positions a
+   marker with a percentage translate, so an element that changes size also
+   changes where it sits: collapsing with display:none moved the marker, and
+   the next measurement then disagreed with the pixels on screen. Only the dot
+   takes pointer events while collapsed, so the invisible pill cannot swallow a
+   tap meant for its neighbour. */
+.fk-marker-dot { display: none; position: absolute; left: 50%; top: 5px; transform: translateX(-50%); width: 11px; height: 11px; border-radius: 999px; background: #003622; border: 1.5px solid rgba(255,255,255,.9); box-shadow: 0 1px 5px rgba(0,0,0,.45); }
+.fk-marker.is-collapsed { pointer-events: none; }
+.fk-marker.is-collapsed .fk-marker-pill { visibility: hidden; }
+.fk-marker.is-collapsed .fk-marker-dot { display: block; pointer-events: auto; cursor: pointer; }
+.fk-marker.is-collapsed.is-selected .fk-marker-dot { background: #C9A24B; }
 `;
 
 export function MapLegend() {

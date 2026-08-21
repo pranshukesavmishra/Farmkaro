@@ -239,13 +239,12 @@ export default async function OwnerDashboardPage() {
                 return (
                   <article
                     key={p.id}
-                    className="card card-lift group overflow-hidden rise"
+                    className="card card-lift group relative overflow-hidden rise"
                     style={{ animationDelay: `${i * 55}ms` }}
                   >
                     <div className="relative h-[176px] overflow-hidden">
                       <ParcelOverlayCard
                         geometry={p.geometry}
-                        href={`/parcel/${p.id}`}
                         rounded="rounded-none"
                         pad={2.3}
                         pills={[
@@ -275,7 +274,10 @@ export default async function OwnerDashboardPage() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <h3 className="display truncate text-md">
-                            <Link href={`/parcel/${p.id}`} className="focus-ring hover:text-brand">
+                            <Link
+                              href={`/parcel/${p.id}`}
+                              className="stretch-link focus-ring hover:text-brand"
+                            >
                               {p.village}
                             </Link>
                           </h3>
@@ -334,12 +336,14 @@ export default async function OwnerDashboardPage() {
                         </div>
                       </div>
 
-                      <Link
-                        href={`/parcel/${p.id}`}
-                        className="focus-ring inline-flex items-center gap-1.5 rounded pt-0.5 text-sm font-semibold text-brand transition-[gap] hover:gap-2.5"
+                      {/* Not a link: the card's title link already covers the
+                          whole card, so this is the affordance for it. */}
+                      <span
+                        aria-hidden
+                        className="inline-flex items-center gap-1.5 pt-0.5 text-sm font-semibold text-brand transition-[gap] group-hover:gap-2.5"
                       >
-                        Open parcel <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-                      </Link>
+                        Open parcel <ArrowRight className="h-3.5 w-3.5" />
+                      </span>
                     </div>
                   </article>
                 );
@@ -416,7 +420,7 @@ export default async function OwnerDashboardPage() {
                       <td className="whitespace-nowrap px-5 py-4">
                         <Link
                           href={`/parcel/${l.parcelId}`}
-                          className="focus-ring rounded font-medium text-ink hover:text-brand"
+                          className="focus-ring -my-1 inline-block min-h-[24px] rounded py-1 font-medium text-ink hover:text-brand"
                         >
                           {l.village}
                         </Link>

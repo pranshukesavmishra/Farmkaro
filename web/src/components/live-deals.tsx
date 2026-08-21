@@ -9,8 +9,8 @@
  * registration forward. Renders nothing when signed out (the dashboards'
  * sample content stands in) and nothing on the static demo build.
  */
-import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, FileSignature, Inbox, Landmark, Loader2, Tag } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ArrowRight, FileSignature, Inbox, Landmark, Loader2, Tag, X } from "lucide-react";
 import { useAuth } from "./auth-context";
 import { Badge } from "./ui";
 import { IS_STATIC } from "@/lib/flags";
@@ -87,6 +87,7 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [countering, setCountering] = useState<OfferDto | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -237,15 +238,7 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
                         <button
                           type="button"
                           disabled={busyId === o.id}
-                          onClick={() => {
-                            const rent = window.prompt("Counter rent (₹/year):", String(o.rentAnnual));
-                            if (!rent) return;
-                            act(
-                              `/api/offers/${o.id}/respond`,
-                              { action: "counter", counter: { rentAnnual: Number(rent), leaseYears: o.leaseYears } },
-                              o.id,
-                            );
-                          }}
+                          onClick={() => setCountering(o)}
                           className={cn(ROW_BTN, "btn-ghost")}
                         >
                           Counter
@@ -315,7 +308,10 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
                               {LEASE_STEP_LABEL[t] ?? t} <ArrowRight className="h-3 w-3" aria-hidden />
                             </button>
                           ))}
-                        {nextReg && l.status !== "draft" && (
+                        {/* Registration is recorded by the landowner's side
+                            only — the cultivator sees the status, never the
+                            control. */}
+                        {mode === "owner" && nextReg && l.status !== "draft" && (
                           <button
                             type="button"
                             disabled={busyId === l.id}
@@ -350,6 +346,156 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
           {error}
         </p>
       )}
+
+      {countering && (
+        <CounterDialog
+          offer={countering}
+          onClose={() => setCountering(null)}
+          onSubmit={(rentAnnual, leaseYears) => {
+            const id = countering.id;
+            setCountering(null);
+            void act(
+              `/api/offers/${id}/respond`,
+              { action: "counter", counter: { rentAnnual, leaseYears } },
+              id,
+            );
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+/**
+ * Countering is a priced decision, so it gets a real form: the offer restated,
+ * the rent editable and validated, and the term changeable — not a browser
+ * prompt that shows no context and accepts any string.
+ */
+function CounterDialog({
+  offer,
+  onClose,
+  onSubmit,
+}: {
+  offer: OfferDto;
+  onClose: () => void;
+  onSubmit: (rentAnnual: number, leaseYears: number) => void;
+}) {
+  const [rent, setRent] = useState(String(offer.rentAnnual));
+  const [years, setYears] = useState(String(offer.leaseYears));
+  const first = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    first.current?.focus();
+    first.current?.select();
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const value = Number(rent);
+  const valid = Number.isFinite(value) && value >= 1000;
+  const perAcre = valid && offer.areaAcres > 0 ? Math.round(value / offer.areaAcres) : null;
+
+  return (
+    <div
+      className="fade-in fixed inset-0 z-50 grid place-items-center bg-forest-950/70 p-4 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Counter this offer"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="card ticks rise w-full max-w-md p-6 shadow-lg sm:p-7">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <div>
+            <h2 className="display text-lg">Counter this offer</h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
+              {offer.village} · <span className="readout">{offer.parcelRef}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="focus-ring -m-1.5 rounded-full p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+
+        <p className="flex gap-2 border-y border-line py-3 text-xs leading-relaxed text-ink-muted">
+          <Tag className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-faint" aria-hidden />
+          <span>
+            They offered <span className="readout text-ink">{formatINR(offer.rentAnnual)}</span>/year
+            for {offer.leaseYears} year{offer.leaseYears === 1 ? "" : "s"}. Your counter replaces it
+            and goes back to them to accept or decline.
+          </span>
+        </p>
+
+        <form
+          className="mt-4 space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (valid) onSubmit(value, Number(years));
+          }}
+        >
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label htmlFor="counter-rent" className="eyebrow mb-2 block">
+                Your rent (₹/year)
+              </label>
+              <input
+                id="counter-rent"
+                ref={first}
+                type="number"
+                min={1000}
+                step={500}
+                className="field readout"
+                value={rent}
+                onChange={(e) => setRent(e.target.value)}
+              />
+            </div>
+            <div>
+              <label htmlFor="counter-years" className="eyebrow mb-2 block">
+                Lease term
+              </label>
+              <select
+                id="counter-years"
+                className="field"
+                value={years}
+                onChange={(e) => setYears(e.target.value)}
+              >
+                {["1", "2", "3", "5", "7", "9"].map((y) => (
+                  <option key={y} value={y}>
+                    {y} year{y === "1" ? "" : "s"}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <p className="text-xs text-ink-muted" aria-live="polite">
+            {valid ? (
+              perAcre !== null ? (
+                <>
+                  That is <span className="readout text-ink">{formatINR(perAcre)}</span>/acre/year
+                  across {offer.areaAcres.toFixed(2)} acres.
+                </>
+              ) : (
+                <>Your counter: <span className="readout text-ink">{formatINR(value)}</span>/year.</>
+              )
+            ) : (
+              "Enter a rent of at least ₹1,000 per year."
+            )}
+          </p>
+
+          <button type="submit" disabled={!valid} className="btn btn-primary w-full py-3">
+            Send counter
+          </button>
+        </form>
+      </div>
+    </div>
   );
 }
