@@ -7,8 +7,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
+  FileSearch,
   FileText,
+  IdCard,
   Info,
+  Loader2,
   MapPin,
   MessageCircle,
   Sprout,
@@ -54,12 +57,23 @@ const VILLAGE_OPTIONS: { name: string; tehsil: string; at: Position }[] = [
 
 const STEPS = ["Locate", "Boundary", "Details", "Infrastructure", "Agriculture", "Documents"] as const;
 
+/** One parcel returned by the land-records connector. */
+interface RecordChoice {
+  khasraNumber?: string;
+  village?: string;
+  areaAcres?: number;
+  geometry?: Ring[];
+  recordedOwnerName?: string;
+  ulpin?: string;
+}
+
 interface FormState {
   village: string;
   tehsil: string;
   boundary: Ring;
   areaAcres: number;
   khasra: string;
+  bhuswamiId: string;
   declaredAcres: string;
   currentUsage: string;
   leaseYears: string;
@@ -82,6 +96,7 @@ const initial: FormState = {
   boundary: [],
   areaAcres: 0,
   khasra: "",
+  bhuswamiId: "",
   declaredAcres: "",
   currentUsage: "",
   leaseYears: "3",
@@ -109,6 +124,77 @@ export function ListLandWizard() {
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
+
+  // Consent-based land-record lookup for THIS parcel only. No bulk data, no
+  // owner-name search: the owner names their own khasra and attests to it.
+  const [recordBusy, setRecordBusy] = useState(false);
+  const [recordNote, setRecordNote] = useState<string | null>(null);
+  const [recordChoices, setRecordChoices] = useState<RecordChoice[]>([]);
+
+  async function fetchLandRecord(kind: "khasra" | "bhuswami") {
+    setRecordBusy(true);
+    setRecordNote(null);
+    setRecordChoices([]);
+    try {
+      const v = VILLAGE_OPTIONS.find((x) => x.name === form.village);
+      const res = await fetch("/api/land-records/lookup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          state: "Madhya Pradesh",
+          district: "Jabalpur",
+          tehsil: v?.tehsil || undefined,
+          village: kind === "khasra" ? form.village : undefined,
+          khasraNumber: kind === "khasra" ? form.khasra.trim() : undefined,
+          bhuswamiId: kind === "bhuswami" ? form.bhuswamiId.trim() : undefined,
+          consentGiven: true,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setRecordNote(data.error ?? "Could not reach the land-records service.");
+        return;
+      }
+      const parcels: RecordChoice[] = data.parcels ?? [];
+      if (!data.found || parcels.length === 0) {
+        setRecordNote(
+          data.note ??
+            "No connected land-records source yet. Your details stay owner-supplied until our team verifies them.",
+        );
+        return;
+      }
+      const source = `${String(data.provider).replace(/_/g, " ")}` +
+        (data.isAuthoritative ? " (authorised source)" : " (unverified source)");
+      if (parcels.length === 1) {
+        applyRecord(parcels[0]);
+        setRecordNote(`Record found via ${source}.` + (parcels[0].geometry ? " Surveyed boundary loaded — check it on the boundary step." : ""));
+      } else {
+        setRecordChoices(parcels);
+        setRecordNote(`${parcels.length} parcels found via ${source}. Choose the one you want to lease.`);
+      }
+    } catch {
+      setRecordNote("Could not reach the land-records service.");
+    } finally {
+      setRecordBusy(false);
+    }
+  }
+
+  function applyRecord(rec: RecordChoice) {
+    if (rec.geometry?.[0]) {
+      set("boundary", rec.geometry[0]);
+      set("areaAcres", Number(rec.areaAcres ?? m2ToAcres(polygonAreaM2(rec.geometry))));
+    }
+    if (rec.khasraNumber) set("khasra", rec.khasraNumber);
+    if (rec.areaAcres) set("declaredAcres", String(rec.areaAcres));
+    if (rec.village) {
+      const match = VILLAGE_OPTIONS.find((v) => v.name.toLowerCase() === rec.village!.toLowerCase());
+      if (match) {
+        set("village", match.name);
+        set("tehsil", match.tehsil);
+      }
+    }
+    setRecordChoices([]);
+  }
 
   const center = useMemo<Position>(() => {
     const v = VILLAGE_OPTIONS.find((v) => v.name === form.village);
@@ -330,10 +416,75 @@ export function ListLandWizard() {
               <FileText className="h-5 w-5" />
               <h2 className="text-[18px] font-semibold">Land details</h2>
             </div>
-            <div>
+            <div className="sm:col-span-2">
               <label htmlFor="khasra" className={labelCls}>Khasra number *</label>
-              <input id="khasra" className={inputCls} placeholder="e.g. 214/3"
-                value={form.khasra} onChange={(e) => set("khasra", e.target.value)} />
+              <div className="flex gap-2">
+                <input id="khasra" className={inputCls} placeholder="e.g. 214/3"
+                  value={form.khasra} onChange={(e) => set("khasra", e.target.value)} />
+                <button
+                  type="button"
+                  disabled={recordBusy || form.khasra.trim() === "" || form.village === ""}
+                  onClick={() => void fetchLandRecord("khasra")}
+                  className="focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-lg border hairline px-3.5 py-2.5 text-[13px] font-semibold hover:bg-[var(--bg)] disabled:opacity-40"
+                >
+                  {recordBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileSearch className="h-3.5 w-3.5" />}
+                  Fetch my record
+                </button>
+              </div>
+              <div className="mt-2.5">
+                <label htmlFor="bhuswami" className={labelCls}>
+                  …or fetch all your land with your Bhu-Swami ID
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="bhuswami"
+                    className={inputCls}
+                    placeholder="Bhu-Swami (landholder) ID"
+                    value={form.bhuswamiId}
+                    onChange={(e) => set("bhuswamiId", e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={recordBusy || form.bhuswamiId.trim() === ""}
+                    onClick={() => void fetchLandRecord("bhuswami")}
+                    className="focus-ring inline-flex shrink-0 items-center gap-1.5 rounded-lg border hairline px-3.5 py-2.5 text-[13px] font-semibold hover:bg-[var(--bg)] disabled:opacity-40"
+                  >
+                    {recordBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <IdCard className="h-3.5 w-3.5" />}
+                    Fetch my land
+                  </button>
+                </div>
+              </div>
+
+              {recordNote && (
+                <p className="mt-1.5 flex gap-1.5 text-[12px] leading-snug muted">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                  <span>{recordNote}</span>
+                </p>
+              )}
+
+              {recordChoices.length > 0 && (
+                <ul className="mt-2 space-y-1.5">
+                  {recordChoices.map((rec, i) => (
+                    <li key={`${rec.khasraNumber ?? i}`}>
+                      <button
+                        type="button"
+                        onClick={() => applyRecord(rec)}
+                        className="focus-ring surface flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-2.5 text-left hover:bg-[var(--bg)]"
+                      >
+                        <span>
+                          <span className="text-[13.5px] font-semibold">
+                            Khasra {rec.khasraNumber ?? "—"}
+                          </span>
+                          {rec.village && <span className="ml-2 text-[12.5px] muted">{rec.village}</span>}
+                        </span>
+                        <span className="font-mono text-[12.5px] tabular-nums muted">
+                          {rec.areaAcres ? `${rec.areaAcres} ac` : ""}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
             <div>
               <label htmlFor="declared" className={labelCls}>Area on record (acres)</label>

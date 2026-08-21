@@ -182,16 +182,13 @@ function build(): SeedData {
     const c = centroid(geometry);
 
     const tier = Math.floor(r() * 4);
-    const geometryStatus: GeometryStatus =
-      tier >= 3
-        ? "matched_to_cadastral_record"
-        : tier === 2
-          ? "boundary_walked_by_farmkaro"
-          : tier === 1
-            ? "boundary_drawn"
-            : "gps_captured";
-    const boundarySource: BoundarySource =
-      tier >= 2 ? "gps_walk" : tier === 1 ? "owner_drawn" : "geojson_import";
+    // Sample geometry is generated, not surveyed. It therefore NEVER claims a
+    // confirmed boundary: the highest rung a sample parcel may reach is
+    // "gps_captured" (a location), because drawing a dashed outline that does
+    // not match the field underneath is worse than drawing nothing at all.
+    // Real rungs are earned by real parcels through onboarding.
+    const geometryStatus: GeometryStatus = "gps_captured";
+    const boundarySource: BoundarySource = "geojson_import";
 
     const water = pickSome<WaterSource>(
       ["borewell", "canal", "river", "pond", "well"],
@@ -220,14 +217,16 @@ function build(): SeedData {
         ? +(((Math.abs(areaAcres - declared) / declared) * 100).toFixed(1))
         : undefined,
       khasraNumber: `${100 + Math.floor(r() * 800)}/${1 + Math.floor(r() * 9)}`,
-      ulpin: tier >= 3 ? `MP${String(Math.floor(r() * 1e12)).padStart(12, "0")}` : undefined,
+      // No ULPIN on sample parcels: it would imply a cadastral match none of
+      // them actually has.
+      ulpin: undefined,
       village: v.name,
       tehsil: v.tehsil,
       district: "Jabalpur",
       state: "Madhya Pradesh",
       geometryStatus,
       boundarySource,
-      boundaryWalkedAt: tier >= 2 ? iso(-12 - Math.floor(r() * 60)) : undefined,
+      boundaryWalkedAt: undefined,
       soilType: pick(SOILS, r),
       waterSources: water,
       irrigatedAcres: irrigated || undefined,
