@@ -265,8 +265,8 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
                 <SurveyTable rows={leaseRows} />
               </div>
               <p className="mt-4 max-w-prose text-sm leading-relaxed text-ink-faint">
-                Leases are executed under the state framework: a fixed term, possession reverting on
-                expiry, and no tenancy or occupancy rights created.
+                Executed under the state framework: a fixed term, possession reverting on expiry,
+                and no tenancy or occupancy rights created.
               </p>
             </section>
 
@@ -305,7 +305,10 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
                         {formatINR(domainMin)}/ac
                       </span>
                       <span className="text-xs text-ink-muted">
-                        <span className="mr-1.5 inline-block h-2 w-[2px] translate-y-[1px] rounded-full bg-brand align-middle" />
+                        <span
+                          aria-hidden
+                          className="mr-1.5 inline-block h-2 w-[2px] translate-y-[1px] rounded-full bg-brand align-middle"
+                        />
                         This listing asks{" "}
                         <span className="readout text-ink">{formatINR(ask)}</span>/acre
                       </span>

@@ -153,7 +153,7 @@ export default async function OwnerDashboardPage() {
       <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-5 rise">
         <div>
           <p className="eyebrow">Landowner control panel</p>
-          <h1 className="display mt-2.5 max-w-[16ch] text-2xl">Landowner dashboard</h1>
+          <h1 className="display mt-2.5 text-2xl">Landowner dashboard</h1>
           <p className="mt-3 max-w-prose text-md leading-relaxed text-ink-muted">
             Your parcels, leases and verification, in one place.
           </p>
