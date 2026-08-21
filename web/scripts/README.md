@@ -30,6 +30,7 @@ Individual checks are `node scripts/<file>`; `audit:ui`, `audit:mobile`,
 | chrome | `verify-chrome.mjs` | Theme default and persistence, sign in/out, notifications, and the land-record lookup's consent and identifier rules |
 | flows | `verify-flows.mjs` | OTP sign-in, identity-claim guards, all six wizard steps including drawing a boundary, the self-deal refusal, enquiry and offer reaching the owner |
 | lease | `verify-lease.mjs` | Offer → accept/counter/reject → every lease transition → the registration ladder, plus the guards on each |
+| messaging | `verify-messaging.mjs` | The thread an enquiry opens: both parties read and reply, a stranger gets 403, empty messages refused |
 | ui audit | `audit-ui.mjs` | Full-page screenshots, console/page errors, and real WCAG contrast for every text node, 6 routes × 2 themes |
 | mobile | `audit-mobile.mjs` | At 390px: no sideways scroll, every tap target ≥ 24px, contrast clean, no JS errors |
 

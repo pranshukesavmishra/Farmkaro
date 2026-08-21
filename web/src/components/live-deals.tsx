@@ -10,7 +10,17 @@
  * sample content stands in) and nothing on the static demo build.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowRight, FileSignature, Inbox, Landmark, Loader2, Tag, X } from "lucide-react";
+import {
+  ArrowRight,
+  FileSignature,
+  Inbox,
+  Landmark,
+  Loader2,
+  MessagesSquare,
+  Send,
+  Tag,
+  X,
+} from "lucide-react";
 import { useAuth } from "./auth-context";
 import { Badge } from "./ui";
 import { IS_STATIC } from "@/lib/flags";
@@ -25,6 +35,7 @@ interface EnquiryDto {
   status: string;
   message: string | null;
   createdAt: string;
+  conversationId: string | null;
   parcel: { village: string; areaAcres: number; rentAnnual: number };
 }
 interface OfferDto {
@@ -88,6 +99,7 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [countering, setCountering] = useState<OfferDto | null>(null);
+  const [thread, setThread] = useState<EnquiryDto | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -187,6 +199,16 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
                     </div>
                     {e.message && (
                       <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">“{e.message}”</p>
+                    )}
+                    {e.conversationId && (
+                      <button
+                        type="button"
+                        onClick={() => setThread(e)}
+                        className={cn(ROW_BTN, "btn-ghost mt-2.5")}
+                      >
+                        <MessagesSquare className="h-3.5 w-3.5" aria-hidden />
+                        {mode === "owner" ? "Reply" : "Open conversation"}
+                      </button>
                     )}
                   </li>
                 ))}
@@ -347,6 +369,14 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
         </p>
       )}
 
+      {thread?.conversationId && (
+        <MessageThread
+          enquiry={thread}
+          meId={user.id}
+          onClose={() => setThread(null)}
+        />
+      )}
+
       {countering && (
         <CounterDialog
           offer={countering}
@@ -363,6 +393,216 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
         />
       )}
     </section>
+  );
+}
+
+interface MessageDto {
+  id: string;
+  sender_id: string | null;
+  body: string | null;
+  system_event: string | null;
+  created_at: string;
+}
+
+/**
+ * The conversation an enquiry opens.
+ *
+ * Every enquiry has always created a thread server-side and recorded both
+ * sides' messages against it, but nothing in the UI could reach it: you could
+ * send one enquiry and then had no way to say anything further. This is that
+ * thread — the same messages, the same authorisation, now readable and
+ * answerable by the two parties to it.
+ */
+function MessageThread({
+  enquiry,
+  meId,
+  onClose,
+}: {
+  enquiry: EnquiryDto;
+  meId: string;
+  onClose: () => void;
+}) {
+  const id = enquiry.conversationId!;
+  const [messages, setMessages] = useState<MessageDto[] | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const foot = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/conversations/${id}/messages`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Could not load the conversation.");
+      setMessages(data.messages ?? []);
+    } catch (e) {
+      setError((e as Error).message);
+      setMessages([]);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useEffect(() => {
+    foot.current?.scrollIntoView({ block: "end" });
+  }, [messages]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  async function send() {
+    const body = draft.trim();
+    if (!body) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/conversations/${id}/messages`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ body }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "Could not send that message.");
+      setDraft("");
+      await load();
+      box.current?.focus();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fade-in fixed inset-0 z-50 grid place-items-center bg-forest-950/70 p-4 backdrop-blur-md"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Conversation about ${enquiry.parcel.village}`}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="card ticks rise flex max-h-[85vh] w-full max-w-lg flex-col p-6 shadow-lg sm:p-7">
+        <div className="mb-4 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="display text-lg">Conversation</h2>
+            <p className="mt-1.5 truncate text-sm text-ink-muted">
+              {enquiry.parcel.village} · <span className="readout">{enquiry.parcelRef}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="focus-ring -m-1.5 rounded-full p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
+          >
+            <X className="h-4 w-4" aria-hidden />
+          </button>
+        </div>
+
+        <div
+          className="thin-scroll min-h-[9rem] flex-1 space-y-2.5 overflow-y-auto border-y border-line py-4"
+          aria-live="polite"
+        >
+          {messages === null ? (
+            <p className="flex items-center gap-2 text-sm text-ink-muted">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> Loading…
+            </p>
+          ) : messages.length === 0 ? (
+            <p className="text-sm text-ink-muted">No messages yet.</p>
+          ) : (
+            messages.map((m) =>
+              m.system_event ? (
+                <p key={m.id} className="eyebrow py-1 text-center">
+                  {m.system_event.replace(/_/g, " ")}
+                </p>
+              ) : (
+                <div
+                  key={m.id}
+                  className={cn("flex", m.sender_id === meId ? "justify-end" : "justify-start")}
+                >
+                  <div
+                    className={cn(
+                      "max-w-[78%] rounded-[14px] border px-3.5 py-2.5",
+                      m.sender_id === meId
+                        ? "border-transparent bg-brand text-brand-ink"
+                        : "border-line bg-surface-2 text-ink",
+                    )}
+                  >
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.body}</p>
+                    <p
+                      className={cn(
+                        "readout mt-1 text-[10.5px]",
+                        m.sender_id === meId ? "opacity-70" : "text-ink-faint",
+                      )}
+                    >
+                      {new Date(m.created_at).toLocaleString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ),
+            )
+          )}
+          <div ref={foot} />
+        </div>
+
+        <form
+          className="mt-4 flex items-end gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
+          }}
+        >
+          <label htmlFor="msg-body" className="sr-only">
+            Your message
+          </label>
+          <textarea
+            id="msg-body"
+            ref={box}
+            rows={2}
+            className="field resize-none leading-relaxed"
+            placeholder="Write a reply…"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              // Enter sends; Shift+Enter starts a new line.
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+          />
+          <button
+            type="submit"
+            disabled={busy || !draft.trim()}
+            className="btn btn-primary shrink-0 py-3"
+            aria-label="Send message"
+          >
+            {busy ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Send className="h-4 w-4" aria-hidden />
+            )}
+          </button>
+        </form>
+
+        {error && (
+          <p role="alert" className="mt-3 text-xs leading-relaxed text-danger">
+            {error}
+          </p>
+        )}
+      </div>
+    </div>
   );
 }
 

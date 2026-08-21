@@ -76,6 +76,7 @@ interface EnquiryRow {
   created_at: string;
   parcel_ref: string;
   parcel_data: string;
+  conversation_id: string | null;
 }
 
 function publicEnquiry(e: EnquiryRow) {
@@ -87,6 +88,10 @@ function publicEnquiry(e: EnquiryRow) {
     status: e.status,
     message: e.message,
     createdAt: e.created_at,
+    // Every enquiry opens a thread. Without this the client has no way to
+    // reach it, which left both sides able to send an enquiry and then unable
+    // to say anything else.
+    conversationId: e.conversation_id,
     parcel: { village: p.village, areaAcres: p.areaAcres, rentAnnual: p.listing.rentAnnual },
   };
 }
@@ -94,14 +99,19 @@ function publicEnquiry(e: EnquiryRow) {
 export function myEnquiries(user: SessionUser) {
   const asLessee = db()
     .prepare(
-      `SELECT e.*, p.ref AS parcel_ref, p.data AS parcel_data FROM enquiries e
-       JOIN parcels p ON p.id = e.parcel_id WHERE e.lessee_id = ? ORDER BY e.created_at DESC`,
+      `SELECT e.*, p.ref AS parcel_ref, p.data AS parcel_data, c.id AS conversation_id
+       FROM enquiries e
+       JOIN parcels p ON p.id = e.parcel_id
+       LEFT JOIN conversations c ON c.parcel_id = e.parcel_id AND c.lessee_id = e.lessee_id
+       WHERE e.lessee_id = ? ORDER BY e.created_at DESC`,
     )
     .all(user.id) as EnquiryRow[];
   const asOwner = db()
     .prepare(
-      `SELECT e.*, p.ref AS parcel_ref, p.data AS parcel_data FROM enquiries e
+      `SELECT e.*, p.ref AS parcel_ref, p.data AS parcel_data, c.id AS conversation_id
+       FROM enquiries e
        JOIN parcels p ON p.id = e.parcel_id
+       LEFT JOIN conversations c ON c.parcel_id = e.parcel_id AND c.lessee_id = e.lessee_id
        WHERE p.owner_user_id = ? OR (p.seed_owner_id IS NOT NULL AND p.seed_owner_id = ?)
        ORDER BY e.created_at DESC`,
     )

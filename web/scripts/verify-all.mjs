@@ -16,6 +16,7 @@ const CHECKS = [
   ["chrome", "verify-chrome.mjs", "theme, session and record lookups"],
   ["flows", "verify-flows.mjs", "sign in, list land, enquire, offer"],
   ["lease", "verify-lease.mjs", "offer to registered lease, and its guards"],
+  ["messaging", "verify-messaging.mjs", "both parties can read and answer a thread"],
   ["ui audit", "audit-ui.mjs", "contrast and errors, 6 routes x 2 themes"],
   ["mobile", "audit-mobile.mjs", "overflow, tap targets and contrast at 390px"],
 ];
