@@ -20,8 +20,13 @@ import { randomUUID } from "node:crypto";
 import { seedData } from "@/lib/seed";
 import { bboxOf } from "@/lib/geo";
 
-const DB_DIR = process.env.FARMKARO_DATA_DIR ?? path.join(process.cwd(), "data");
-const DB_PATH = process.env.FARMKARO_DB_PATH ?? path.join(DB_DIR, "farmkaro.db");
+// Resolved lazily (inside db()) rather than at module load, so a caller that
+// sets FARMKARO_DB_PATH before the first db() call — notably the test suite —
+// always wins the race, regardless of module import order.
+function resolveDbPath(): string {
+  const dir = process.env.FARMKARO_DATA_DIR ?? path.join(process.cwd(), "data");
+  return process.env.FARMKARO_DB_PATH ?? path.join(dir, "farmkaro.db");
+}
 
 const SCHEMA = `
 PRAGMA journal_mode = WAL;
@@ -198,8 +203,9 @@ let _db: Database.Database | null = null;
 
 export function db(): Database.Database {
   if (_db) return _db;
-  mkdirSync(path.dirname(DB_PATH), { recursive: true });
-  _db = new Database(DB_PATH);
+  const dbPath = resolveDbPath();
+  mkdirSync(path.dirname(dbPath), { recursive: true });
+  _db = new Database(dbPath);
   _db.exec(SCHEMA);
   importSeedIfEmpty(_db);
   return _db;

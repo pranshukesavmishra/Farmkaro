@@ -54,6 +54,12 @@ export async function requestOtp(rawPhone: string): Promise<{ ok: true; devOtp?:
   const phone = normalizePhone(rawPhone);
   if (!phone) return { ok: false, error: "Enter a valid 10-digit Indian mobile number." };
 
+  // Per-phone request cap. Without this, an attacker could reset the verify
+  // attempt-lock indefinitely by re-requesting a fresh code (the IP limiter
+  // alone can be dodged by rotating IPs). Bucketed here, keyed by phone.
+  if (!rateLimit(`otp-request-phone:${phone}`, 5, 60 * 60 * 1000))
+    return { ok: false, error: "Too many code requests for this number. Try again later." };
+
   const code = String(randomInt(100000, 1000000));
   db()
     .prepare(
@@ -67,11 +73,10 @@ export async function requestOtp(rawPhone: string): Promise<{ ok: true; devOtp?:
   await sms.send(phone, `FarmKaro login code: ${code}. Valid for 5 minutes.`);
   audit({ action: "otp_requested", targetType: "phone", targetId: phone });
 
-  // Outside production the code is echoed so the flow is fully testable
-  // without an SMS provider. Never in production.
-  return process.env.NODE_ENV === "production" && !process.env.FARMKARO_DEMO_OTP
-    ? { ok: true }
-    : { ok: true, devOtp: code };
+  // The code is echoed only in demo mode, so the flow is fully testable
+  // without an SMS provider. A production build (DEMO_ENABLED false) never
+  // returns it — it is delivered by SMS alone.
+  return DEMO_ENABLED ? { ok: true, devOtp: code } : { ok: true };
 }
 
 export async function verifyOtp(
@@ -175,18 +180,47 @@ export function logout(token: string) {
 }
 
 /**
- * Claim a sample owner identity for the demo: logging in and "claiming" a
- * seed owner links their parcels to the real account. Explicit action, and
- * only available while a seed owner is unclaimed.
+ * The seed-owner claim is a SANDBOX affordance, not a real onboarding path.
+ * Real onboarding is the Lease Desk's identity/KYC flow (docs/05). Because
+ * the claim links parcels to an account without proving ownership, it is:
+ *   - available only when demo mode is on (never in production by default),
+ *   - one-per-account (an account with a seed owner cannot grab another),
+ *   - refused for an already-claimed owner,
+ *   - rate-limited at the route.
+ * This closes the "any user seizes any landowner's parcels" hole the
+ * adversarial review found while keeping the demo usable.
  */
+export const DEMO_ENABLED =
+  process.env.FARMKARO_DEMO === "1" ||
+  (process.env.NODE_ENV !== "production" && process.env.FARMKARO_DEMO !== "0");
+
 export function claimSeedOwner(userId: string, seedOwnerId: string): { ok: boolean; error?: string } {
+  if (!DEMO_ENABLED) return { ok: false, error: "Owner onboarding is handled by the FarmKaro team." };
+
   const owner = seedData().owners.find((o) => o.id === seedOwnerId);
   if (!owner) return { ok: false, error: "Unknown sample owner." };
+
+  // One sandbox identity per account: prevents an attacker looping own-1..own-N
+  // to sweep up every unclaimed owner.
+  const me = db().prepare("SELECT seed_owner_id FROM users WHERE id = ?").get(userId) as
+    | { seed_owner_id: string | null }
+    | undefined;
+  if (me?.seed_owner_id) {
+    return me.seed_owner_id === seedOwnerId
+      ? { ok: true }
+      : { ok: false, error: "This account already acts as a sample owner." };
+  }
+
   const taken = db().prepare("SELECT id FROM users WHERE seed_owner_id = ? AND id != ?").get(seedOwnerId, userId);
   if (taken) return { ok: false, error: "That sample owner is already claimed." };
-  db().prepare("UPDATE users SET seed_owner_id = ?, full_name = COALESCE(full_name, ?), updated_at = ? WHERE id = ?")
-    .run(seedOwnerId, owner.name, now(), userId);
-  db().prepare("UPDATE parcels SET owner_user_id = ? WHERE seed_owner_id = ?").run(userId, seedOwnerId);
+
+  const tx = db().transaction(() => {
+    db()
+      .prepare("UPDATE users SET seed_owner_id = ?, full_name = COALESCE(full_name, ?), updated_at = ? WHERE id = ?")
+      .run(seedOwnerId, owner.name, now(), userId);
+    db().prepare("UPDATE parcels SET owner_user_id = ? WHERE seed_owner_id = ?").run(userId, seedOwnerId);
+  });
+  tx();
   audit({ actorId: userId, action: "seed_owner_claimed", targetType: "user", targetId: userId, detail: { seedOwnerId } });
   return { ok: true };
 }

@@ -219,67 +219,88 @@ export function respondToOffer(
   if (!OFFER_TRANSITIONS[offer.status]?.includes(next))
     throw new AuthError(409, `Offer is ${offer.status}; cannot ${action}.`);
 
-  db().prepare("UPDATE offers SET status = ?, updated_at = ? WHERE id = ?").run(next, now(), offer.id);
-  audit({ actorId: user.id, action: `offer_${next}`, targetType: "offer", targetId: offer.id });
-
-  const convo = ensureConversation(parcel.id, offer.lessee_id, parcel.owner_user_id);
-
-  let counterOfferId: string | null = null;
   if (action === "counter") {
     if (!counter) throw new AuthError(400, "Counter terms required.");
     if (counter.rentAnnual < 1000 || counter.rentAnnual > 100_000_000)
       throw new AuthError(400, "Rent out of range.");
     if (counter.leaseYears < 0.5 || counter.leaseYears > 30)
       throw new AuthError(400, "Lease term out of range.");
-    counterOfferId = uuid();
-    const t = now();
-    db()
-      .prepare(
-        `INSERT INTO offers (id, parcel_id, lessee_id, parent_offer_id, status, rent_annual, deposit, lease_years, start_date, note, actor_role, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        counterOfferId,
-        offer.parcel_id,
-        offer.lessee_id,
-        offer.id,
-        counter.rentAnnual,
-        offer.deposit,
-        counter.leaseYears,
-        offer.start_date,
-        counter.note ?? null,
-        owner ? "owner" : "lessee",
-        t,
-        t,
-      );
-    addMessage(
-      convo,
-      null,
-      `Counter-offer: Rs ${counter.rentAnnual.toLocaleString("en-IN")}/yr for ${counter.leaseYears} years`,
-      "offer_countered",
-    );
   }
 
-  let leaseId: string | null = null;
+  // One live lease per parcel: refuse to accept an offer when the parcel
+  // already has a non-terminal lease. Prevents two accepted offers producing
+  // two overlapping leases on the same land.
   if (action === "accept") {
-    leaseId = createLeaseFromOffer(user, offer, parcel);
-    addMessage(convo, null, "Offer accepted; draft lease created", "offer_accepted");
+    const live = db()
+      .prepare(
+        `SELECT id FROM leases WHERE parcel_id = ? AND status NOT IN ('completed','terminated') LIMIT 1`,
+      )
+      .get(offer.parcel_id);
+    if (live) throw new AuthError(409, "This parcel already has a live lease.");
   }
-  if (action === "reject") addMessage(convo, null, null, "offer_rejected");
 
-  const counterpartyId = authorIsLessee ? offer.lessee_id : parcel.owner_user_id;
-  if (counterpartyId && counterpartyId !== user.id) {
-    notify(counterpartyId, {
-      eventType: `offer_${next}`,
-      title:
-        action === "accept"
-          ? "Your offer was accepted"
-          : action === "counter"
-            ? "You received a counter-offer"
-            : `Offer ${next}`,
-      link: `/parcel/${parcel.id}`,
-    });
-  }
+  const convo = ensureConversation(parcel.id, offer.lessee_id, parcel.owner_user_id);
+
+  let counterOfferId: string | null = null;
+  let leaseId: string | null = null;
+
+  // All state changes for this response commit together or not at all.
+  const tx = db().transaction(() => {
+    db().prepare("UPDATE offers SET status = ?, updated_at = ? WHERE id = ?").run(next, now(), offer.id);
+    audit({ actorId: user.id, action: `offer_${next}`, targetType: "offer", targetId: offer.id });
+
+    if (action === "counter") {
+      counterOfferId = uuid();
+      const t = now();
+      db()
+        .prepare(
+          `INSERT INTO offers (id, parcel_id, lessee_id, parent_offer_id, status, rent_annual, deposit, lease_years, start_date, note, actor_role, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'open', ?, ?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          counterOfferId,
+          offer.parcel_id,
+          offer.lessee_id,
+          offer.id,
+          counter!.rentAnnual,
+          offer.deposit,
+          counter!.leaseYears,
+          offer.start_date,
+          counter!.note ?? null,
+          owner ? "owner" : "lessee",
+          t,
+          t,
+        );
+      addMessage(
+        convo,
+        null,
+        `Counter-offer: Rs ${counter!.rentAnnual.toLocaleString("en-IN")}/yr for ${counter!.leaseYears} years`,
+        "offer_countered",
+      );
+    }
+
+    if (action === "accept") {
+      leaseId = createLeaseFromOffer(user, offer, parcel);
+      addMessage(convo, null, "Offer accepted; draft lease created", "offer_accepted");
+    }
+    if (action === "reject") addMessage(convo, null, null, "offer_rejected");
+
+    const counterpartyId = authorIsLessee ? offer.lessee_id : parcel.owner_user_id;
+    if (counterpartyId && counterpartyId !== user.id) {
+      notify(counterpartyId, {
+        eventType: `offer_${next}`,
+        title:
+          action === "accept"
+            ? "Your offer was accepted"
+            : action === "counter"
+              ? "You received a counter-offer"
+              : `Offer ${next}`,
+        link: `/parcel/${parcel.id}`,
+      });
+    }
+  });
+  tx();
+
   return { status: next, counterOfferId, leaseId };
 }
 

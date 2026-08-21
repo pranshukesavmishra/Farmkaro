@@ -4,11 +4,15 @@
  * trigger — the same properties probed manually over HTTP, kept green by CI.
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-process.env.FARMKARO_DB_PATH = path.join(mkdtempSync(path.join(tmpdir(), "fk-test-")), "test.db");
+const TEST_DB = path.join(mkdtempSync(path.join(tmpdir(), "fk-test-")), "test.db");
+rmSync(TEST_DB, { force: true });
+rmSync(`${TEST_DB}-wal`, { force: true });
+rmSync(`${TEST_DB}-shm`, { force: true });
+process.env.FARMKARO_DB_PATH = TEST_DB;
 
 import { db, now, uuid, audit } from "@/server/db";
 import type { SessionUser } from "@/server/core";
@@ -23,8 +27,12 @@ import {
   setRegistrationStatus,
 } from "@/server/services";
 
-function makeUser(phone: string, seedOwnerId: string | null = null): SessionUser {
+// Random base so phones stay unique even if the module is loaded twice
+// against a shared connection (vitest can re-import in one worker).
+let phoneSeq = 6_000_000_000 + Math.floor(Math.random() * 900_000_000);
+function makeUser(_label: string, seedOwnerId: string | null = null): SessionUser {
   const id = uuid();
+  const phone = String(phoneSeq++);
   const t = now();
   db()
     .prepare(
@@ -41,13 +49,63 @@ let stranger: SessionUser;
 let parcelId: string;
 let parcelSeedOwner: string;
 
+/** Parcels owned by the same seed owner, handed out one-per-lease so the
+ *  "one live lease per parcel" guard never trips a test that legitimately
+ *  needs a fresh parcel. */
+let ownerParcels: string[] = [];
+let cursor = 0;
+const nextParcel = () => {
+  const id = ownerParcels[cursor++];
+  if (!id) throw new Error("ran out of test parcels");
+  return id;
+};
+
 beforeAll(() => {
-  const row = db().prepare("SELECT id, seed_owner_id FROM parcels LIMIT 1").get() as {
-    id: string;
-    seed_owner_id: string;
+  // Pick the seed owner that holds the most parcels, so lease tests have room.
+  const top = db()
+    .prepare(
+      `SELECT seed_owner_id, COUNT(*) AS n FROM parcels GROUP BY seed_owner_id ORDER BY n DESC LIMIT 1`,
+    )
+    .get() as { seed_owner_id: string; n: number };
+  parcelSeedOwner = top.seed_owner_id;
+
+  // Provision plenty of parcels for this owner by cloning one, so lease tests
+  // (each needing a fresh parcel under the one-live-lease-per-parcel rule)
+  // never run dry.
+  const template = db().prepare("SELECT * FROM parcels WHERE seed_owner_id = ? LIMIT 1").get(parcelSeedOwner) as {
+    ref: string;
+    geometry: string;
+    centroid_lng: number;
+    centroid_lat: number;
+    bbox: string;
+    data: string;
   };
-  parcelId = row.id;
-  parcelSeedOwner = row.seed_owner_id;
+  const ins = db().prepare(
+    `INSERT OR IGNORE INTO parcels (id, ref, owner_user_id, seed_owner_id, geometry, centroid_lng, centroid_lat, bbox, data)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
+  );
+  for (let i = 0; i < 12; i++) {
+    const suffix = uuid().slice(0, 8);
+    ins.run(
+      `p-test-${suffix}`,
+      `FK-TEST-${suffix}`,
+      parcelSeedOwner,
+      template.geometry,
+      template.centroid_lng,
+      template.centroid_lat,
+      template.bbox,
+      template.data,
+    );
+  }
+
+  ownerParcels = (
+    db().prepare("SELECT id FROM parcels WHERE seed_owner_id = ? ORDER BY id").all(parcelSeedOwner) as {
+      id: string;
+    }[]
+  ).map((r) => r.id);
+  parcelId = ownerParcels[0];
+  cursor = 1; // reserve parcelId for the non-lease enquiry/offer tests
+
   farmer = makeUser("9811111111");
   owner = makeUser("9822222222", parcelSeedOwner);
   stranger = makeUser("9833333333");
@@ -71,7 +129,8 @@ describe("enquiries", () => {
 
 describe("offer state machine", () => {
   it("full accept path creates a draft lease", () => {
-    const { id: offerId } = createOffer(farmer, { parcelId, rentAnnual: 50000, leaseYears: 3 });
+    const p = nextParcel();
+    const { id: offerId } = createOffer(farmer, { parcelId: p, rentAnnual: 50000, leaseYears: 3 });
     // stranger cannot act
     expect(() => respondToOffer(stranger, offerId, "accept")).toThrowError(/not a party/);
     // the author cannot accept their own offer
@@ -85,7 +144,8 @@ describe("offer state machine", () => {
   });
 
   it("counter creates a new open offer authored by the owner, actionable by the lessee", () => {
-    const { id: offerId } = createOffer(farmer, { parcelId, rentAnnual: 40000, leaseYears: 2 });
+    const p = nextParcel();
+    const { id: offerId } = createOffer(farmer, { parcelId: p, rentAnnual: 40000, leaseYears: 2 });
     const res = respondToOffer(owner, offerId, "counter", { rentAnnual: 45000, leaseYears: 2 });
     expect(res.status).toBe("countered");
     expect(res.counterOfferId).toBeTruthy();
@@ -109,7 +169,7 @@ describe("offer state machine", () => {
 
 describe("lease lifecycle", () => {
   function freshLease(): string {
-    const { id } = createOffer(farmer, { parcelId, rentAnnual: 60000, leaseYears: 3 });
+    const { id } = createOffer(farmer, { parcelId: nextParcel(), rentAnnual: 60000, leaseYears: 3 });
     return respondToOffer(owner, id, "accept").leaseId!;
   }
 
@@ -140,6 +200,15 @@ describe("lease lifecycle", () => {
     setRegistrationStatus(owner, leaseId, "registered");
     expect(() => setRegistrationStatus(owner, leaseId, "stamped")).toThrowError(/backwards/);
     expect(() => setRegistrationStatus(stranger, leaseId, "registered")).toThrowError(/not a party/);
+  });
+
+  it("refuses a second live lease on the same parcel", () => {
+    const p = nextParcel();
+    const otherFarmer = makeUser("other"); // dedicated, so global visibility asserts stay valid
+    const first = createOffer(farmer, { parcelId: p, rentAnnual: 55000, leaseYears: 3 });
+    respondToOffer(owner, first.id, "accept"); // creates a live lease
+    const second = createOffer(otherFarmer, { parcelId: p, rentAnnual: 70000, leaseYears: 3 });
+    expect(() => respondToOffer(owner, second.id, "accept")).toThrowError(/live lease/);
   });
 
   it("myLeases scopes by party and never leaks to strangers", () => {
