@@ -147,32 +147,35 @@ function LoginDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
     }
   }
 
-  const inputCls =
-    "surface focus-ring w-full rounded-lg border px-3 py-2.5 text-[15px] font-mono tracking-wide placeholder:font-sans placeholder:tracking-normal placeholder:text-[var(--fg-muted)]";
-
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fade-in fixed inset-0 z-50 grid place-items-center bg-forest-950/70 p-4 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-label="Sign in to FarmKaro"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="surface w-full max-w-sm rounded-2xl border p-6 shadow-2xl">
-        <div className="mb-4 flex items-start justify-between">
+      <div className="card ticks rise w-full max-w-sm p-6 shadow-lg sm:p-7">
+        <div className="mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2 className="text-[18px] font-semibold tracking-tight">Sign in</h2>
-            <p className="mt-0.5 text-[13px] muted">
-              {step === "phone" ? "We send a one-time code to your phone." : `Code sent to ${phone}`}
+            <h2 className="display text-lg">Sign in</h2>
+            <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">
+              {step === "phone" ? (
+                "We send a one-time code to your phone."
+              ) : (
+                <>
+                  Code sent to <span className="readout text-ink">{phone}</span>
+                </>
+              )}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="focus-ring -m-1 rounded-md p-1 text-[var(--fg-muted)] hover:text-[var(--fg)]"
+            className="focus-ring -m-1.5 rounded-full p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
           >
-            <X className="h-4.5 w-4.5 h-5 w-5" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
 
@@ -184,8 +187,8 @@ function LoginDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             }}
             className="space-y-3"
           >
-            <label htmlFor="login-phone" className="flex items-center gap-1.5 text-[12.5px] font-medium muted">
-              <Phone className="h-3.5 w-3.5" /> Mobile number
+            <label htmlFor="login-phone" className="eyebrow mb-2 flex items-center gap-1.5">
+              <Phone className="h-3.5 w-3.5" aria-hidden /> Mobile number
             </label>
             <input
               id="login-phone"
@@ -194,16 +197,16 @@ function LoginDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               inputMode="tel"
               autoComplete="tel"
               placeholder="10-digit mobile"
-              className={inputCls}
+              className="field readout placeholder:font-sans placeholder:tracking-normal"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
             <button
               type="submit"
               disabled={busy || phone.replace(/\D/g, "").length < 10}
-              className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-forest-900 px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-forest-700 disabled:opacity-40 dark:bg-forest-500"
+              className="btn btn-primary w-full py-3"
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Send code
+              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Send code
             </button>
           </form>
         ) : (
@@ -214,8 +217,8 @@ function LoginDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
             }}
             className="space-y-3"
           >
-            <label htmlFor="login-code" className="flex items-center gap-1.5 text-[12.5px] font-medium muted">
-              <LockKeyhole className="h-3.5 w-3.5" /> One-time code
+            <label htmlFor="login-code" className="eyebrow mb-2 flex items-center gap-1.5">
+              <LockKeyhole className="h-3.5 w-3.5" aria-hidden /> One-time code
             </label>
             <input
               id="login-code"
@@ -223,23 +226,37 @@ function LoginDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
               inputMode="numeric"
               autoComplete="one-time-code"
               placeholder="6-digit code"
-              className={cn(inputCls, "text-center text-[19px]")}
+              className={cn(
+                "field readout placeholder:font-sans placeholder:tracking-normal",
+                "text-center text-md",
+              )}
+              // .readout sets a tight letter-spacing; the code wants the opposite,
+              // so it is set inline where it can win.
+              style={{ letterSpacing: "0.3em" }}
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
             {devOtp && (
-              <p className="rounded-lg bg-gold/12 px-3 py-2 text-[12.5px] leading-snug text-[#8a6b22] dark:text-gold">
+              <p
+                className="rounded-[10px] border px-3 py-2.5 text-xs leading-relaxed text-ink-muted"
+                style={{
+                  background: "var(--gold-soft)",
+                  borderColor: "color-mix(in srgb, var(--gold) 34%, transparent)",
+                }}
+              >
                 No SMS provider is connected in this environment, so your code is{" "}
-                <strong className="font-mono text-[14px]">{devOtp}</strong>. In production this
-                arrives by SMS only.
+                <strong className="readout text-sm font-semibold" style={{ color: "var(--gold)" }}>
+                  {devOtp}
+                </strong>
+                . In production this arrives by SMS only.
               </p>
             )}
             <button
               type="submit"
               disabled={busy || code.trim().length < 6}
-              className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-forest-900 px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-forest-700 disabled:opacity-40 dark:bg-forest-500"
+              className="btn btn-primary w-full py-3"
             >
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />} Verify &amp; sign in
+              {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Verify &amp; sign in
             </button>
             <button
               type="button"
@@ -248,7 +265,7 @@ function LoginDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
                 setCode("");
                 setError(null);
               }}
-              className="focus-ring w-full rounded-full py-1.5 text-[12.5px] font-medium muted hover:text-[var(--fg)]"
+              className="btn btn-quiet w-full py-2 text-xs"
             >
               Use a different number
             </button>
@@ -256,7 +273,14 @@ function LoginDialog({ onClose, onSuccess }: { onClose: () => void; onSuccess: (
         )}
 
         {error && (
-          <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
+          <p
+            role="alert"
+            className="mt-4 rounded-[10px] border px-3 py-2 text-xs leading-relaxed text-danger"
+            style={{
+              background: "color-mix(in srgb, var(--danger) 10%, transparent)",
+              borderColor: "color-mix(in srgb, var(--danger) 28%, transparent)",
+            }}
+          >
             {error}
           </p>
         )}

@@ -10,7 +10,6 @@ import { CalendarClock, Check, Loader2, MessageSquare, Tag, X } from "lucide-rea
 import { useAuth } from "./auth-context";
 import { IS_STATIC } from "@/lib/flags";
 import { formatINR } from "@/lib/geo";
-import { cn } from "@/lib/cn";
 
 interface Props {
   parcelId: string;
@@ -27,7 +26,7 @@ export function ParcelActions({ parcelId, rentAnnual, village }: Props) {
 
   if (IS_STATIC) {
     return (
-      <p className="text-center text-[12px] leading-snug muted">
+      <p className="text-center text-xs leading-relaxed text-ink-muted">
         Enquiries, offers and digital leases run in the pilot app — this public demo is read-only.
       </p>
     );
@@ -38,26 +37,24 @@ export function ParcelActions({ parcelId, rentAnnual, village }: Props) {
   return (
     <>
       <div className="space-y-2.5">
-        <button
-          type="button"
-          onClick={() => gate("enquiry")}
-          className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-forest-900 px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-forest-700 dark:bg-forest-500"
-        >
-          <MessageSquare className="h-4 w-4" /> Send enquiry
+        <button type="button" onClick={() => gate("enquiry")} className="btn btn-primary w-full py-3">
+          <MessageSquare className="h-4 w-4" aria-hidden /> Send enquiry
         </button>
-        <button
-          type="button"
-          onClick={() => gate("offer")}
-          className="focus-ring flex w-full items-center justify-center gap-2 rounded-full border hairline px-4 py-2.5 text-[14px] font-semibold hover:bg-[var(--bg)]"
-        >
-          <Tag className="h-4 w-4" /> Make an offer
+        <button type="button" onClick={() => gate("offer")} className="btn btn-ghost w-full py-3">
+          <Tag className="h-4 w-4" aria-hidden /> Make an offer
         </button>
         {done && (
-          <p className="flex items-center justify-center gap-1.5 rounded-lg bg-forest-500/10 px-3 py-2 text-[12.5px] font-medium text-forest-500 dark:text-forest-300">
-            <Check className="h-3.5 w-3.5" /> {done}
+          <p
+            className="flex items-center justify-center gap-2 rounded-[10px] border px-3 py-2 text-xs font-medium text-positive"
+            style={{
+              background: "color-mix(in srgb, var(--positive) 10%, transparent)",
+              borderColor: "color-mix(in srgb, var(--positive) 30%, transparent)",
+            }}
+          >
+            <Check className="h-3.5 w-3.5" aria-hidden /> {done}
           </p>
         )}
-        <p className="text-center text-[12px] muted">
+        <p className="text-center text-xs text-ink-faint">
           {user ? "The owner is notified instantly." : "You'll be asked to sign in first."}
         </p>
       </div>
@@ -99,22 +96,22 @@ function Shell({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fade-in fixed inset-0 z-50 grid place-items-center bg-forest-950/70 p-4 backdrop-blur-md"
       role="dialog"
       aria-modal="true"
       aria-label={title}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div className="surface w-full max-w-md rounded-2xl border p-6 shadow-2xl">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
+      <div className="card ticks rise w-full max-w-md p-6 shadow-lg sm:p-7">
+        <div className="mb-5 flex items-start justify-between gap-4">
+          <h2 className="display text-lg">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Close"
-            className="focus-ring -m-1 rounded-md p-1 text-[var(--fg-muted)] hover:text-[var(--fg)]"
+            className="focus-ring -m-1.5 rounded-full p-1.5 text-ink-faint transition-colors hover:bg-surface-2 hover:text-ink"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" aria-hidden />
           </button>
         </div>
         {children}
@@ -123,9 +120,12 @@ function Shell({
   );
 }
 
-const inputCls =
-  "surface focus-ring w-full rounded-lg border px-3 py-2.5 text-[14px] placeholder:text-[var(--fg-muted)]";
-const labelCls = "mb-1.5 block text-[12.5px] font-medium muted";
+const labelCls = "eyebrow mb-2 block";
+const errorCls = "rounded-[10px] border px-3 py-2 text-xs leading-relaxed text-danger";
+const errorStyle = {
+  background: "color-mix(in srgb, var(--danger) 10%, transparent)",
+  borderColor: "color-mix(in srgb, var(--danger) 28%, transparent)",
+};
 
 function EnquiryDialog({
   parcelId,
@@ -170,7 +170,7 @@ function EnquiryDialog({
           e.preventDefault();
           void submit();
         }}
-        className="space-y-3"
+        className="space-y-4"
       >
         <div>
           <label htmlFor="enq-msg" className={labelCls}>
@@ -179,22 +179,22 @@ function EnquiryDialog({
           <textarea
             id="enq-msg"
             rows={4}
-            className={cn(inputCls, "resize-none leading-relaxed")}
+            className="field resize-none leading-relaxed"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
           />
         </div>
         {error && (
-          <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
+          <p role="alert" className={errorCls} style={errorStyle}>
             {error}
           </p>
         )}
         <button
           type="submit"
           disabled={busy || message.trim().length < 3}
-          className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-forest-900 px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-forest-700 disabled:opacity-40 dark:bg-forest-500"
+          className="btn btn-primary w-full py-3"
         >
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Send enquiry
+          {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Send enquiry
         </button>
       </form>
     </Shell>
@@ -249,12 +249,14 @@ function OfferDialog({
           e.preventDefault();
           void submit();
         }}
-        className="space-y-3"
+        className="space-y-4"
       >
-        <p className="flex items-center gap-1.5 text-[12.5px] muted">
-          <CalendarClock className="h-3.5 w-3.5" />
-          Asking rent: {formatINR(askingRent)}/year. Your offer goes to the owner for
-          acceptance, rejection or counter.
+        <p className="flex gap-2 border-y border-line py-3 text-xs leading-relaxed text-ink-muted">
+          <CalendarClock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-faint" aria-hidden />
+          <span>
+            Asking rent: <span className="readout text-ink">{formatINR(askingRent)}</span>/year. Your
+            offer goes to the owner for acceptance, rejection or counter.
+          </span>
         </p>
         <div className="grid grid-cols-2 gap-3">
           <div>
@@ -266,7 +268,7 @@ function OfferDialog({
               type="number"
               min={1000}
               step={500}
-              className={inputCls}
+              className="field readout"
               value={rent}
               onChange={(e) => setRent(e.target.value)}
             />
@@ -277,7 +279,7 @@ function OfferDialog({
             </label>
             <select
               id="offer-years"
-              className={inputCls}
+              className="field"
               value={years}
               onChange={(e) => setYears(e.target.value)}
             >
@@ -295,23 +297,23 @@ function OfferDialog({
           </label>
           <input
             id="offer-note"
-            className={inputCls}
+            className="field"
             placeholder="e.g. can pay half-yearly in advance"
             value={note}
             onChange={(e) => setNote(e.target.value)}
           />
         </div>
         {error && (
-          <p role="alert" className="rounded-lg bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
+          <p role="alert" className={errorCls} style={errorStyle}>
             {error}
           </p>
         )}
         <button
           type="submit"
           disabled={busy || !Number(rent) || Number(rent) < 1000}
-          className="focus-ring flex w-full items-center justify-center gap-2 rounded-full bg-forest-900 px-4 py-2.5 text-[14px] font-semibold text-white hover:bg-forest-700 disabled:opacity-40 dark:bg-forest-500"
+          className="btn btn-primary w-full py-3"
         >
-          {busy && <Loader2 className="h-4 w-4 animate-spin" />} Send offer
+          {busy && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />} Send offer
         </button>
       </form>
     </Shell>

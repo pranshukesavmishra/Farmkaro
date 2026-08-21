@@ -279,7 +279,7 @@ export default async function OwnerDashboardPage() {
                               {p.village}
                             </Link>
                           </h3>
-                          <p className="mt-0.5 font-mono text-xs text-ink-faint">
+                          <p className="readout mt-0.5 text-xs text-ink-faint">
                             {p.ref} · Khasra {p.khasraNumber}
                           </p>
                         </div>
@@ -366,7 +366,14 @@ export default async function OwnerDashboardPage() {
         />
 
         <div className="card overflow-hidden">
-          <div className="thin-scroll overflow-x-auto">
+          {/* A horizontally scrolling region needs to be reachable by keyboard,
+              or the columns past the fold are only available to a mouse. */}
+          <div
+            className="thin-scroll focus-ring overflow-x-auto"
+            tabIndex={0}
+            role="region"
+            aria-label="Executed leases"
+          >
             <table className="w-full min-w-[920px] text-left text-sm">
               <thead>
                 <tr className="border-b border-line bg-surface-2">

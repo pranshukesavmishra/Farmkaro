@@ -199,11 +199,17 @@ export function ParcelOverlayCard({
             }}
           >
             <div className="glass flex items-center gap-2 rounded-xl px-2.5 py-1.5 shadow-lg">
-              <span className="text-[10px] font-medium uppercase tracking-[0.09em] text-white/62">{p.label}</span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.09em] text-white/60">{p.label}</span>
               <span
                 className={cn(
                   "font-mono text-[12px] font-semibold tabular-nums",
-                  p.tone === "gold" ? "text-gold" : p.tone === "accent" ? "text-forest-300" : "text-white",
+                  // Fixed ramp, not the theme tokens: this chip is dark in both
+                  // themes because it floats over a photograph.
+                  p.tone === "gold"
+                    ? "text-ochre-300"
+                    : p.tone === "accent"
+                      ? "text-forest-200"
+                      : "text-white",
                 )}
               >
                 {p.value}

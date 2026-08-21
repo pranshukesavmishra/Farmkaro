@@ -210,8 +210,23 @@ export function extractFromText(rawText: string, source: KhasraExtraction["sourc
   return out;
 }
 
+/**
+ * Where a khasra copy sets its fields on one line — "Village: Panagar Area:
+ * 4.690 hectare" — a place capture runs straight into the next field's label.
+ * The capture already stops at that field's separator, so the stray text is
+ * always a label term sitting at the end: cut it there.
+ */
+const NEXT_LABEL = new RegExp(
+  `[\\s.,;|-]+(?:${[...new Set(Object.values(LABELS).flat())]
+    .sort((a, b) => b.length - a.length)
+    .map(esc)
+    .join("|")})[ \\t]*(?:[.:\\-=].*)?$`,
+  "i",
+);
+
 function cleanPlace(v: string): string {
   return v
+    .replace(NEXT_LABEL, "")
     .replace(/\s*[|:;,]\s*$/, "")
     .replace(/\s{2,}/g, " ")
     .trim();

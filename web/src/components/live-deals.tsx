@@ -73,6 +73,9 @@ const NEXT_REGISTRATION: Partial<Record<RegistrationStatus, RegistrationStatus>>
   submitted_for_registration: "registered",
 };
 
+/** Row actions sit below the .btn default size — these are inline, not primary. */
+const ROW_BTN = "btn px-3.5 py-1.5 text-xs";
+
 export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
   const { user, ready } = useAuth();
   const [enquiries, setEnquiries] = useState<{ asLessee: EnquiryDto[]; asOwner: EnquiryDto[] }>({
@@ -134,11 +137,17 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
   const empty = !loading && myEnquiries.length === 0 && relevantOffers.length === 0 && relevantLeases.length === 0;
 
   return (
-    <section className="mb-10 rounded-2xl border-2 border-forest-500/30 bg-forest-500/[0.04] p-5 sm:p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-[19px] font-semibold tracking-tight">
-          <span className="grid h-7 w-7 place-items-center rounded-lg bg-forest-500/15 text-forest-500 dark:text-forest-300">
-            <Inbox className="h-4 w-4" />
+    <section
+      className="card ticks mb-10 p-5 sm:p-6"
+      style={{
+        background: "color-mix(in srgb, var(--brand) 5%, var(--surface))",
+        borderColor: "color-mix(in srgb, var(--brand) 26%, var(--line))",
+      }}
+    >
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="display flex items-center gap-2.5 text-lg">
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-brand text-brand-ink">
+            <Inbox className="h-4 w-4" aria-hidden />
           </span>
           Your live activity
         </h2>
@@ -146,32 +155,38 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
       </div>
 
       {loading ? (
-        <p className="flex items-center gap-2 py-6 text-[13.5px] muted">
-          <Loader2 className="h-4 w-4 animate-spin" /> Loading your activity…
+        <p className="flex items-center gap-2 py-6 text-sm text-ink-muted">
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading your activity…
         </p>
       ) : empty ? (
-        <p className="py-2 text-[13.5px] muted">
+        <p className="max-w-prose py-2 text-sm leading-relaxed text-ink-muted">
           {mode === "farmer"
             ? "No activity yet — open a parcel and send an enquiry or an offer."
             : "No activity yet on your parcels. Claim a sample owner below to see incoming enquiries, or wait for the first enquiry."}
         </p>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-7">
           {myEnquiries.length > 0 && (
             <div>
-              <h3 className="mb-2 text-[12px] font-medium uppercase tracking-[0.09em] muted">
+              <h3 className="eyebrow mb-2.5 border-b border-line pb-2">
                 Enquiries {mode === "owner" ? "received" : "sent"}
               </h3>
               <ul className="space-y-2">
                 {myEnquiries.map((e) => (
-                  <li key={e.id} className="surface rounded-xl border px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <a href={`/parcel/${e.parcelId}`} className="focus-ring rounded text-[14px] font-semibold hover:underline">
-                        {e.parcel.village} · {e.parcel.areaAcres.toFixed(1)} ac
+                  <li key={e.id} className="card px-4 py-3.5">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <a
+                        href={`/parcel/${e.parcelId}`}
+                        className="focus-ring rounded text-sm font-semibold text-ink hover:text-brand"
+                      >
+                        {e.parcel.village} ·{" "}
+                        <span className="readout">{e.parcel.areaAcres.toFixed(1)} ac</span>
                       </a>
-                      <span className="font-mono text-[11px] muted">{e.parcelRef}</span>
+                      <span className="readout text-xs text-ink-faint">{e.parcelRef}</span>
                     </div>
-                    {e.message && <p className="mt-1 text-[13px] muted">“{e.message}”</p>}
+                    {e.message && (
+                      <p className="mt-1.5 text-sm leading-relaxed text-ink-muted">“{e.message}”</p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -180,20 +195,25 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
 
           {relevantOffers.length > 0 && (
             <div>
-              <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-[0.09em] muted">
-                <Tag className="h-3.5 w-3.5" /> Offers
+              <h3 className="eyebrow mb-2.5 flex items-center gap-1.5 border-b border-line pb-2">
+                <Tag className="h-3.5 w-3.5" aria-hidden /> Offers
               </h3>
               <ul className="space-y-2">
                 {relevantOffers.map((o) => (
-                  <li key={o.id} className="surface rounded-xl border px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <a href={`/parcel/${o.parcelId}`} className="focus-ring rounded text-[14px] font-semibold hover:underline">
-                          {o.village} · {o.areaAcres.toFixed(1)} ac
+                  <li key={o.id} className="card px-4 py-3.5">
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <a
+                          href={`/parcel/${o.parcelId}`}
+                          className="focus-ring rounded text-sm font-semibold text-ink hover:text-brand"
+                        >
+                          {o.village} · <span className="readout">{o.areaAcres.toFixed(1)} ac</span>
                         </a>
-                        <p className="mt-0.5 text-[13px] muted">
-                          <span className="font-mono font-semibold text-[var(--fg)]">{formatINR(o.rentAnnual)}</span>
-                          /yr · {o.leaseYears} yrs
+                        <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                          <span className="readout font-semibold text-ink">
+                            {formatINR(o.rentAnnual)}
+                          </span>
+                          /yr · <span className="readout">{o.leaseYears}</span> yrs
                           {o.note ? ` · “${o.note}”` : ""}
                           {o.actorRole === "owner" ? " · counter-offer from owner" : ""}
                         </p>
@@ -205,12 +225,12 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
                       </Badge>
                     </div>
                     {o.canAct && (
-                      <div className="mt-2.5 flex flex-wrap gap-2">
+                      <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
                           disabled={busyId === o.id}
                           onClick={() => act(`/api/offers/${o.id}/respond`, { action: "accept" }, o.id)}
-                          className="focus-ring rounded-full bg-forest-900 px-3.5 py-1.5 text-[12.5px] font-semibold text-white hover:bg-forest-700 disabled:opacity-40 dark:bg-forest-500"
+                          className={cn(ROW_BTN, "btn-primary")}
                         >
                           Accept → draft lease
                         </button>
@@ -226,7 +246,7 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
                               o.id,
                             );
                           }}
-                          className="focus-ring rounded-full border hairline px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-[var(--bg)] disabled:opacity-40"
+                          className={cn(ROW_BTN, "btn-ghost")}
                         >
                           Counter
                         </button>
@@ -234,7 +254,7 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
                           type="button"
                           disabled={busyId === o.id}
                           onClick={() => act(`/api/offers/${o.id}/respond`, { action: "reject" }, o.id)}
-                          className="focus-ring rounded-full border hairline px-3.5 py-1.5 text-[12.5px] font-semibold text-danger hover:bg-danger/5 disabled:opacity-40"
+                          className={cn(ROW_BTN, "btn-ghost text-danger")}
                         >
                           Reject
                         </button>
@@ -248,34 +268,40 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
 
           {relevantLeases.length > 0 && (
             <div>
-              <h3 className="mb-2 flex items-center gap-1.5 text-[12px] font-medium uppercase tracking-[0.09em] muted">
-                <FileSignature className="h-3.5 w-3.5" /> Leases
+              <h3 className="eyebrow mb-2.5 flex items-center gap-1.5 border-b border-line pb-2">
+                <FileSignature className="h-3.5 w-3.5" aria-hidden /> Leases
               </h3>
               <ul className="space-y-2">
                 {relevantLeases.map((l) => {
                   const nextReg = NEXT_REGISTRATION[l.registrationStatus];
                   return (
-                    <li key={l.id} className="surface rounded-xl border px-4 py-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="text-[14px] font-semibold">
-                            {l.village} · {l.areaAcres.toFixed(1)} ac
-                            <span className="ml-2 font-mono text-[11px] font-normal muted">{l.ref}</span>
+                    <li key={l.id} className="card px-4 py-3.5">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-ink">
+                            {l.village} · <span className="readout">{l.areaAcres.toFixed(1)} ac</span>
+                            <span className="readout ml-2 text-xs font-normal text-ink-faint">
+                              {l.ref}
+                            </span>
                           </p>
-                          <p className="mt-0.5 text-[13px] muted">
-                            <span className="font-mono font-semibold text-[var(--fg)]">{formatINR(l.rentAnnual)}</span>
-                            /yr · {l.startDate} → {l.endDate} · you are the {l.role === "lessor" ? "owner" : "cultivator"}
+                          <p className="mt-1 text-sm leading-relaxed text-ink-muted">
+                            <span className="readout font-semibold text-ink">
+                              {formatINR(l.rentAnnual)}
+                            </span>
+                            /yr · <span className="readout">{l.startDate}</span> →{" "}
+                            <span className="readout">{l.endDate}</span> · you are the{" "}
+                            {l.role === "lessor" ? "owner" : "cultivator"}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           <Badge tone={l.status === "active" ? "good" : "pending"}>{l.status.replace(/_/g, " ")}</Badge>
                           <Badge tone={l.registrationStatus === "registered" ? "good" : "neutral"}>
-                            <Landmark className="h-3 w-3" />
+                            <Landmark className="h-3 w-3" aria-hidden />
                             {REGISTRATION_LABEL[l.registrationStatus]}
                           </Badge>
                         </div>
                       </div>
-                      <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
                         {l.nextTransitions
                           .filter((t) => t !== "terminated")
                           .map((t) => (
@@ -284,14 +310,9 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
                               type="button"
                               disabled={busyId === l.id}
                               onClick={() => act(`/api/leases/${l.id}/advance`, { to: t }, l.id)}
-                              className={cn(
-                                "focus-ring flex items-center gap-1 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold disabled:opacity-40",
-                                t === "completed"
-                                  ? "border hairline hover:bg-[var(--bg)]"
-                                  : "bg-forest-900 text-white hover:bg-forest-700 dark:bg-forest-500",
-                              )}
+                              className={cn(ROW_BTN, t === "completed" ? "btn-ghost" : "btn-primary")}
                             >
-                              {LEASE_STEP_LABEL[t] ?? t} <ArrowRight className="h-3 w-3" />
+                              {LEASE_STEP_LABEL[t] ?? t} <ArrowRight className="h-3 w-3" aria-hidden />
                             </button>
                           ))}
                         {nextReg && l.status !== "draft" && (
@@ -299,13 +320,13 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
                             type="button"
                             disabled={busyId === l.id}
                             onClick={() => act(`/api/leases/${l.id}/registration`, { to: nextReg }, l.id)}
-                            className="focus-ring rounded-full border hairline px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-[var(--bg)] disabled:opacity-40"
+                            className={cn(ROW_BTN, "btn-ghost")}
                           >
                             Registration → {REGISTRATION_LABEL[nextReg]}
                           </button>
                         )}
                       </div>
-                      <p className="mt-2 text-[11.5px] muted">
+                      <p className="mt-3 border-t border-line pt-2.5 text-xs leading-relaxed text-ink-faint">
                         This lease creates no tenancy or occupancy rights; possession reverts on expiry.
                       </p>
                     </li>
@@ -318,7 +339,14 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
       )}
 
       {error && (
-        <p role="alert" className="mt-3 rounded-lg bg-danger/10 px-3 py-2 text-[12.5px] text-danger">
+        <p
+          role="alert"
+          className="mt-4 rounded-[10px] border px-3 py-2 text-xs leading-relaxed text-danger"
+          style={{
+            background: "color-mix(in srgb, var(--danger) 10%, transparent)",
+            borderColor: "color-mix(in srgb, var(--danger) 28%, transparent)",
+          }}
+        >
           {error}
         </p>
       )}

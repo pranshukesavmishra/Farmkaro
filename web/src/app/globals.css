@@ -29,8 +29,11 @@
   --surface: #ffffff;
   --surface-2: #faf9f5;
   --fg: #0b120e;
-  --fg-muted: #59645b;
-  --fg-faint: #8a948b;
+  /* Both greys clear WCAG AA (4.5:1) as body text on --canvas, the lightest
+     surface: muted 6.6:1, faint 4.7:1. Faint is the quietest ink we ship —
+     anything below it must be decoration, never words. */
+  --fg-muted: #4d5850;
+  --fg-faint: #656f67;
   --line: #e0ded4;
   --line-strong: #cbc8bb;
 
@@ -38,7 +41,10 @@
   --brand-ink: #ffffff;
   --brand-hover: #0b4a32;
   --positive: #1b6b47;
-  --gold: #9a7220;
+  /* Deep ochre, not bright gold: at 12px on --canvas-2 (the palest surface
+     gold ever sits on) this clears 4.8:1. Bright gold reads as gold only on
+     the dark canvas — on paper it has to be ink. */
+  --gold: #825e0f;
   --gold-soft: rgba(201, 162, 75, 0.14);
   --danger: #a5332a;
 
@@ -68,7 +74,7 @@
   --surface-2: #142019;
   --fg: #eaf0ea;
   --fg-muted: #91a298;
-  --fg-faint: #64756b;
+  --fg-faint: #7a8b81;
   --line: #1b2a22;
   --line-strong: #2a3d33;
 
@@ -158,9 +164,12 @@ body {
     color: var(--fg-faint);
   }
 
-  /* Glass chips floating over imagery. */
+  /* Glass chips floating over imagery. The scrim has to hold up over the
+     brightest thing a satellite tile can show — dry fields, sand, a village
+     roof — so it is opaque enough that white text clears 4.5:1 even when the
+     photograph underneath is pure white. */
   .glass {
-    background: rgba(6, 13, 9, 0.58);
+    background: rgba(6, 13, 9, 0.76);
     backdrop-filter: blur(14px) saturate(150%);
     -webkit-backdrop-filter: blur(14px) saturate(150%);
     border: 1px solid rgba(255, 255, 255, 0.14);
@@ -188,6 +197,10 @@ body {
       border-color 0.16s ease,
       box-shadow 0.16s ease,
       color 0.16s ease;
+  }
+  .btn:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
   }
   .btn:active {
     transform: translateY(1px) scale(0.995);

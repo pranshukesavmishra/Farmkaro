@@ -50,20 +50,26 @@ export function ClaimOwner() {
   }
 
   return (
-    <div className="mb-8 rounded-xl border border-gold/35 bg-gold/[0.06] px-4 py-3.5">
-      <p className="flex items-center gap-1.5 text-[13px] font-semibold">
-        <KeyRound className="h-3.5 w-3.5 text-[#8a6b22] dark:text-gold" />
+    <div
+      className="card mb-8 p-5"
+      style={{
+        background: "var(--gold-soft)",
+        borderColor: "color-mix(in srgb, var(--gold) 38%, transparent)",
+      }}
+    >
+      <p className="eyebrow flex items-center gap-2" style={{ color: "var(--gold)" }}>
+        <KeyRound className="h-3.5 w-3.5" aria-hidden />
         Pilot mode: act as a sample landowner
       </p>
-      <p className="mt-1 text-[12.5px] muted">
+      <p className="mt-2.5 max-w-prose text-sm leading-relaxed text-ink-muted">
         Link your account to one of the sample owners to receive their enquiries and offers and
         manage their parcels here. In the real pilot this is replaced by identity onboarding.
       </p>
       {user ? (
-        <div className="mt-2.5 flex flex-wrap items-center gap-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2.5">
           <select
             aria-label="Sample owner"
-            className="surface focus-ring rounded-lg border px-2.5 py-1.5 text-[13px]"
+            className="field w-auto text-sm"
             value={choice}
             onChange={(e) => setChoice(e.target.value)}
           >
@@ -77,21 +83,25 @@ export function ClaimOwner() {
             type="button"
             disabled={busy}
             onClick={() => void claim()}
-            className="focus-ring flex items-center gap-1.5 rounded-full bg-forest-900 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:bg-forest-700 disabled:opacity-40 dark:bg-forest-500"
+            className="btn btn-primary px-4 py-2 text-xs"
           >
-            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Claim parcels
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />} Claim parcels
           </button>
         </div>
       ) : (
         <button
           type="button"
           onClick={openLogin}
-          className="focus-ring mt-2.5 rounded-full bg-forest-900 px-4 py-1.5 text-[12.5px] font-semibold text-white hover:bg-forest-700 dark:bg-forest-500"
+          className="btn btn-primary mt-4 px-4 py-2 text-xs"
         >
           Sign in to try it
         </button>
       )}
-      {error && <p className="mt-2 text-[12.5px] text-danger">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-3 text-xs text-danger">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

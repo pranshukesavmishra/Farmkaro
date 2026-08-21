@@ -37,7 +37,16 @@ const config: Config = {
           700: "#0B4A32",
           500: "#1B6B47",
           300: "#5FA37F",
+          200: "#A8D8BF",
           100: "#D9E8DE",
+        },
+        // Gold over imagery. `--gold` swaps to a deep ochre in the light theme
+        // so it stays readable on paper, which would make it invisible on the
+        // permanently-dark glass chrome that floats over satellite tiles.
+        ochre: {
+          300: "#E3BE76",
+          400: "#C9A24B",
+          900: "#1A1405",
         },
       },
       fontFamily: {

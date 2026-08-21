@@ -16,6 +16,10 @@ interface Notification {
   created_at: string;
 }
 
+/** Header chrome stays quiet: hairline circles, ink-muted glyphs. */
+const ICON_BTN =
+  "focus-ring grid h-9 w-9 place-items-center rounded-full border border-line text-ink-muted transition-colors hover:border-line-strong hover:bg-surface-2 hover:text-ink";
+
 export function UserMenu() {
   const { user, ready, openLogin, logout } = useAuth();
   const [notifs, setNotifs] = useState<Notification[]>([]);
@@ -51,15 +55,11 @@ export function UserMenu() {
   }, [open]);
 
   if (IS_STATIC) return null;
-  if (!ready) return <div className="h-9 w-24 animate-pulse rounded-full bg-[var(--line)]/60" />;
+  if (!ready) return <div className="h-9 w-24 animate-pulse rounded-full bg-surface-2" />;
 
   if (!user) {
     return (
-      <button
-        type="button"
-        onClick={openLogin}
-        className="focus-ring rounded-full border hairline px-4 py-2 text-[13px] font-semibold hover:bg-[var(--surface)]"
-      >
+      <button type="button" onClick={openLogin} className="btn btn-ghost">
         Sign in
       </button>
     );
@@ -87,22 +87,25 @@ export function UserMenu() {
           if (!open) void markAllRead();
         }}
         aria-label={unread ? `Notifications, ${unread} unread` : "Notifications"}
-        className="focus-ring relative grid h-9 w-9 place-items-center rounded-full border hairline text-[var(--fg-muted)] hover:text-[var(--fg)]"
+        aria-expanded={open}
+        className={cn(ICON_BTN, "relative")}
       >
-        <Bell className="h-4 w-4" />
+        <Bell className="h-4 w-4" aria-hidden />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-forest-500 px-1 font-mono text-[9.5px] font-semibold text-white">
+          <span className="readout absolute -right-0.5 -top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-brand px-1 text-[9.5px] font-semibold text-brand-ink">
             {unread > 9 ? "9+" : unread}
           </span>
         )}
       </button>
 
       <span
-        className="hidden items-center gap-1.5 rounded-full border hairline px-3 py-1.5 text-[12.5px] font-medium sm:flex"
+        className="hidden items-center gap-2 rounded-full border border-line px-3 py-1.5 text-xs font-medium text-ink-muted sm:flex"
         title={user.fullName ?? user.phone}
       >
-        <UserRound className="h-3.5 w-3.5 text-forest-500 dark:text-forest-300" />
-        {user.fullName ?? `+91 ${user.phone.slice(0, 5)}…`}
+        <UserRound className="h-3.5 w-3.5 text-brand" aria-hidden />
+        {user.fullName ?? (
+          <span className="readout">{`+91 ${user.phone.slice(0, 5)}…`}</span>
+        )}
       </span>
 
       <button
@@ -110,32 +113,47 @@ export function UserMenu() {
         onClick={() => void logout()}
         aria-label="Sign out"
         title="Sign out"
-        className="focus-ring grid h-9 w-9 place-items-center rounded-full border hairline text-[var(--fg-muted)] hover:text-[var(--fg)]"
+        className={ICON_BTN}
       >
-        <LogOut className="h-4 w-4" />
+        <LogOut className="h-4 w-4" aria-hidden />
       </button>
 
       {open && (
-        <div className="surface absolute right-0 top-11 z-50 max-h-[70vh] w-[320px] overflow-y-auto rounded-xl border p-2 shadow-xl">
-          <p className="px-2 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-[0.09em] muted">
-            Notifications
-          </p>
+        <div className="card thin-scroll absolute right-0 top-12 z-50 max-h-[70vh] w-[320px] overflow-y-auto p-2 shadow-lg">
+          <p className="eyebrow px-2 pb-2 pt-1.5">Notifications</p>
           {notifs.length === 0 ? (
-            <p className="px-2 pb-3 text-[13px] muted">Nothing yet.</p>
+            <p className="px-2 pb-3 text-sm text-ink-muted">Nothing yet.</p>
           ) : (
             <ul className="space-y-0.5">
               {notifs.slice(0, 15).map((n) => (
                 <li key={n.id}>
                   <a
                     href={n.link ?? "#"}
-                    className={cn(
-                      "focus-ring block rounded-lg px-2 py-2 hover:bg-[var(--bg)]",
-                      !n.read_at && "bg-forest-500/8",
-                    )}
+                    className="focus-ring block rounded-[10px] px-2.5 py-2 transition-colors hover:bg-surface-2"
                   >
-                    <p className="text-[13px] font-medium leading-snug">{n.title}</p>
-                    {n.body && <p className="mt-0.5 line-clamp-2 text-[12px] muted">{n.body}</p>}
-                    <p className="mt-0.5 font-mono text-[10.5px] muted">
+                    <p
+                      className={cn(
+                        "flex items-baseline gap-1.5 text-sm leading-snug",
+                        n.read_at ? "text-ink-muted" : "font-medium text-ink",
+                      )}
+                    >
+                      {!n.read_at && (
+                        <span
+                          aria-hidden
+                          className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-brand"
+                        />
+                      )}
+                      <span className="min-w-0">
+                        {n.title}
+                        {!n.read_at && <span className="sr-only"> (unread)</span>}
+                      </span>
+                    </p>
+                    {n.body && (
+                      <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-ink-muted">
+                        {n.body}
+                      </p>
+                    )}
+                    <p className="readout mt-1 text-[10.5px] text-ink-faint">
                       {new Date(n.created_at).toLocaleString("en-IN", {
                         day: "numeric",
                         month: "short",

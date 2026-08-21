@@ -119,6 +119,22 @@ describe("never invents data", () => {
     expect(r.confidence.area).toBeUndefined();
   });
 
+  it("stops a place name at the next field when a copy puts them on one line", () => {
+    const r = extractFromText(
+      "Khasra No.: 722/7  Village: Panagar  Area: 4.690 hectare  Tehsil: Panagar",
+      "pdf_text",
+    );
+    expect(r.village).toBe("Panagar");
+    expect(r.khasraNumber).toBe("722/7");
+    expect(r.areaHectares).toBe(4.69);
+  });
+
+  it("keeps a place name whose own words look like labels", () => {
+    const r = extractFromText("ग्राम : पनागर खुर्द\nजिला : जबलपुर", "pdf_text");
+    expect(r.village).toBe("पनागर खुर्द");
+    expect(r.district).toBe("जबलपुर");
+  });
+
   it("marks the source so the UI can say how the details were read", () => {
     expect(extractFromText(ENGLISH_COPY, "ocr").source).toBe("ocr");
     expect(extractFromText(ENGLISH_COPY, "pdf_text").source).toBe("pdf_text");

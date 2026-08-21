@@ -50,7 +50,7 @@ export function ParcelCard({
                 {p.village}
               </Link>
             </h3>
-            <p className="mt-0.5 font-mono text-xs text-ink-faint">
+            <p className="readout mt-0.5 text-xs text-ink-faint">
               {p.ref} · Khasra {p.khasraNumber}
             </p>
           </div>

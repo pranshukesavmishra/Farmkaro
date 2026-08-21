@@ -290,7 +290,7 @@ export function MapLegend() {
         Annual rent · tap to open
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <span className="inline-flex h-5 items-center rounded-full bg-gold px-2 font-mono text-[10px] font-semibold text-[#1a1405]">
+        <span className="inline-flex h-5 items-center rounded-full bg-ochre-400 px-2 font-mono text-[10px] font-semibold text-ochre-900">
           ₹48k
         </span>
         Selected

@@ -8,7 +8,9 @@
     "start": "next start -p 3000",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "audit:ui": "node scripts/audit-ui.mjs",
+    "verify:flows": "node scripts/verify-flows.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

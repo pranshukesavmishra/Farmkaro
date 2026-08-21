@@ -88,7 +88,7 @@ function HeroChip({
         className={cn(
           "text-sm font-semibold text-white",
           tone !== "default" && "readout",
-          tone === "rent" && "text-gold",
+          tone === "rent" && "text-ochre-300",
         )}
       >
         {value}
@@ -248,7 +248,7 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
           {/* Left — the record */}
           <div className="min-w-0 space-y-14 sm:space-y-16">
             <section className="rise">
-              <p className="eyebrow">Description</p>
+              <h2 className="eyebrow">Description</h2>
               <p className="mt-3 max-w-prose text-md leading-relaxed">{p.listing.description}</p>
             </section>
 
@@ -264,7 +264,7 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
               <div className="mt-5">
                 <SurveyTable rows={leaseRows} />
               </div>
-              <p className="mt-4 max-w-prose text-sm leading-relaxed text-ink-faint">
+              <p className="mt-4 max-w-prose text-sm leading-relaxed text-ink-muted">
                 Executed under the state framework: a fixed term, possession reverting on expiry,
                 and no tenancy or occupancy rights created.
               </p>
@@ -300,22 +300,26 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
                         style={{ left: `${at(ask)}%`, transform: "translateX(-50%)" }}
                       />
                     </div>
-                    <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1.5">
+                    <div className="mt-3 flex items-baseline justify-between gap-4">
                       <span className="readout text-xs text-ink-faint">
                         {formatINR(domainMin)}/ac
-                      </span>
-                      <span className="text-xs text-ink-muted">
-                        <span
-                          aria-hidden
-                          className="mr-1.5 inline-block h-2 w-[2px] translate-y-[1px] rounded-full bg-brand align-middle"
-                        />
-                        This listing asks{" "}
-                        <span className="readout text-ink">{formatINR(ask)}</span>/acre
                       </span>
                       <span className="readout text-xs text-ink-faint">
                         {formatINR(domainMax)}/ac
                       </span>
                     </div>
+
+                    <p className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 text-xs text-ink-muted">
+                      <span className="inline-flex items-center gap-2">
+                        <span aria-hidden className="h-1.5 w-5 rounded-full bg-gold" />
+                        Completed leases nearby
+                      </span>
+                      <span className="inline-flex items-center gap-2">
+                        <span aria-hidden className="h-3 w-[2px] rounded-full bg-brand" />
+                        This listing asks{" "}
+                        <span className="readout text-ink">{formatINR(ask)}</span>/ac
+                      </span>
+                    </p>
                   </div>
                 </>
               ) : (
@@ -324,7 +328,7 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
                 </p>
               )}
 
-              <p className="mt-5 max-w-prose border-t border-line pt-4 text-sm leading-relaxed text-ink-faint">
+              <p className="mt-5 max-w-prose border-t border-line pt-4 text-sm leading-relaxed text-ink-muted">
                 Comparables come only from leases completed on FarmKaro. Where none exist, we do not
                 invent an estimate.
               </p>
@@ -413,7 +417,8 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
               </div>
 
               <h3 className="eyebrow mt-4 border-t border-line pt-4">
-                Documents · {reviewedDocs} of {p.documents.length} reviewed
+                Documents · <span className="readout">{reviewedDocs}</span> of{" "}
+                <span className="readout">{p.documents.length}</span> reviewed
               </h3>
               <div className="mt-1">
                 <DocumentList docs={p.documents} />
