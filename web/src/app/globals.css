@@ -19,8 +19,8 @@
 
 :root {
   /* Type */
-  --font-display: "Fraunces", Georgia, serif;
-  --font-sans: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Fraunces", "Noto Sans Devanagari", Georgia, serif;
+  --font-sans: "Public Sans", "Noto Sans Devanagari", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
   /* Light — warm paper, for reading-heavy surfaces */
@@ -443,4 +443,38 @@ body {
 }
 .thin-scroll::-webkit-scrollbar-track {
   background: transparent;
+}
+
+/* ── Print: the record summary, and nothing else ────────────────────────────
+   A printed record is a reference sheet, not a certificate: the banner that
+   says so is part of the print output itself. Visibility (not display) keeps
+   the card's layout box intact while everything around it disappears. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    border: none;
+    box-shadow: none;
+  }
+  .print-area .print-banner {
+    display: block;
+    padding: 10px 14px;
+    border: 1.5px solid #000;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .print-area .print\:hidden,
+  .print-area button {
+    display: none !important;
+  }
 }

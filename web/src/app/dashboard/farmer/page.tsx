@@ -5,6 +5,7 @@ import { ParcelOverlayCard, SatelliteAttribution } from "@/components/parcel-ove
 import { ParcelCard } from "@/components/parcel-card";
 import { MatchScore } from "@/components/match-score";
 import { LiveDeals } from "@/components/live-deals";
+import { MandiBoard } from "@/components/mandi-board";
 import { getRepository } from "@/lib/repo";
 import { JABALPUR } from "@/lib/seed";
 import { formatAcres, formatINR } from "@/lib/geo";
@@ -544,6 +545,8 @@ export default async function FarmerDashboardPage() {
           </ul>
         )}
       </section>
+
+      <MandiBoard className="pt-16 sm:pt-20" />
     </div>
   );
 }

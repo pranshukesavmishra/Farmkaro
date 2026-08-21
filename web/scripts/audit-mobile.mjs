@@ -5,7 +5,7 @@ import fs from "node:fs";
 const BASE = "http://localhost:3000";
 const OUT = "/tmp/farmkaro-mobile";
 fs.mkdirSync(OUT, { recursive: true });
-const ROUTES = [["home","/"],["discover","/discover"],["listland","/list-land"],["owner","/dashboard/owner"],["farmer","/dashboard/farmer"],["parcel","/parcel/p-1"]];
+const ROUTES = [["home","/"],["discover","/discover"],["records","/records"],["listland","/list-land"],["owner","/dashboard/owner"],["farmer","/dashboard/farmer"],["parcel","/parcel/p-1"]];
 let fail = 0;
 const check = (c, m) => { console.log((c ? "  ✓ " : "  ✗ FAIL: ") + m); if (!c) fail++; };
 const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });

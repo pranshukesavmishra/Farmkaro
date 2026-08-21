@@ -26,7 +26,19 @@
  * or MP's WebGIS 2.0 where terms permit) can be dropped in without touching
  * any call site, and only it may report isAuthoritative = true.
  */
-import type { PolygonCoords } from "@/lib/geo";
+import type { PolygonCoords, Position } from "@/lib/geo";
+import {
+  DISTRICT,
+  findVillage,
+  normalizeKhasra,
+  tehsilOf,
+} from "@/lib/district";
+import {
+  OFFICIAL_RECORDS,
+  derivedAcres,
+  derivedBigha,
+  type OfficialLandRecord,
+} from "@/lib/official-records";
 
 /**
  * A lookup is addressed by ONE self-asserted identifier:
@@ -73,6 +85,42 @@ export interface LandParcelRecord {
   ulpin?: string;
   /** Anything else the provider returned, displayed verbatim and unparsed. */
   raw?: Record<string, unknown>;
+  /**
+   * Where this record can honestly be placed on a map. Records without
+   * cadastral geometry anchor at the village centroid, and say so — the pin
+   * is real (the right village), the parcel boundary is not drawn.
+   */
+  location?: {
+    center: Position;
+    precision: "village" | "parcel";
+    label: string;
+  };
+  /** Full खतौनी detail, present when the provider carries it. */
+  record?: {
+    landId: string;
+    halka: string;
+    tehsil: string;
+    tehsilHi: string;
+    villageHi: string;
+    areaHectares: number;
+    areaBigha: number;
+    landUse: string;
+    soil: string;
+    soilHi: string;
+    irrigation: string;
+    revenuePerYear: number;
+    owners: Array<{
+      name: string;
+      nameHi: string;
+      relation: string;
+      sharePercent: number;
+      aadhaarVerified: boolean;
+    }>;
+    crops: Array<{ season: string; crop: string; areaHectares: number; irrigated: boolean }>;
+    boundaries: { north: string; south: string; east: string; west: string };
+    encumbrance: { status: string; detail: string };
+    mutation: { orderNo: string; date: string; note: string };
+  };
 }
 
 export interface LandRecordResult {
@@ -89,6 +137,7 @@ export interface LandRecordResult {
 
 export type LandRecordsProviderId =
   | "operator_entered"
+  | "pilot_dataset"
   | "mp_webgis"
   | "bhu_naksha"
   | "dilrmp";
@@ -122,6 +171,112 @@ export const operatorEnteredProvider: LandRecordsProvider = {
       note:
         `No connected land-records source for ${q.state}. Details are recorded ` +
         `as supplied by the owner and are marked owner-supplied, not verified.`,
+    };
+  },
+};
+
+/** An OfficialLandRecord shaped as the connector's public parcel type. */
+function toParcelRecord(r: OfficialLandRecord): LandParcelRecord {
+  const v = findVillage(r.village);
+  const t = v ? tehsilOf(v) : undefined;
+  return {
+    khasraNumber: r.khasraNumber,
+    village: r.village,
+    areaAcres: +derivedAcres(r).toFixed(2),
+    recordedOwnerName: r.owners[0]?.name,
+    khataNumber: r.khataNumber,
+    // Deliberately NOT surfaced as a ULPIN: the pilot land id is not a live
+    // 14-character Bhu-Aadhaar, and pretending it is would be a false claim.
+    location: v
+      ? {
+          center: v.at,
+          precision: "village",
+          label: `${v.name} (${t?.name ?? ""} tehsil) — village-level position; exact parcel boundary after Bhu-Naksha verification`,
+        }
+      : undefined,
+    record: {
+      landId: r.landId,
+      halka: r.halka,
+      tehsil: t?.name ?? r.tehsilCode,
+      tehsilHi: t?.nameHi ?? r.tehsilCode,
+      villageHi: v?.nameHi ?? r.village,
+      areaHectares: r.areaHectares,
+      areaBigha: +derivedBigha(r).toFixed(2),
+      landUse: r.landUse,
+      soil: r.soil,
+      soilHi: r.soilHi,
+      irrigation: r.irrigation,
+      revenuePerYear: r.revenuePerYear,
+      owners: r.owners,
+      crops: r.crops,
+      boundaries: r.boundaries,
+      encumbrance: r.encumbrance,
+      mutation: r.mutation,
+    },
+  };
+}
+
+const PILOT_NOTE =
+  "Record from the FarmKaro Jabalpur pilot record set. Live verification " +
+  "against MP Bhulekh happens at onboarding — until then this record is a " +
+  "reference, not a government-certified extract.";
+
+/**
+ * Pilot dataset provider — the Lease Desk's Jabalpur record set, served with
+ * the same single-record, consent-gated contract a live integration would
+ * honour. Never authoritative. Lookup is by the record's own identifiers
+ * only; there is no name search here for the same DPDP reasons as above.
+ */
+export const pilotRecordsProvider: LandRecordsProvider = {
+  id: "pilot_dataset",
+  label: "FarmKaro Jabalpur pilot record set",
+  isAuthoritative: false,
+  isConfigured: true,
+  async lookup(q) {
+    const inDistrict =
+      q.state.trim().toLowerCase() === DISTRICT.state.toLowerCase() &&
+      q.district.trim().toLowerCase() === DISTRICT.name.toLowerCase();
+    if (!inDistrict) return operatorEnteredProvider.lookup(q);
+
+    let matches: OfficialLandRecord[] = [];
+    if (q.khasraNumber) {
+      const village = findVillage(q.village ?? "");
+      const k = normalizeKhasra(q.khasraNumber);
+      matches = OFFICIAL_RECORDS.filter(
+        (r) =>
+          normalizeKhasra(r.khasraNumber) === k &&
+          (village ? r.village === village.name : false),
+      );
+    } else if (q.bhuswamiId) {
+      // ONLY the full landholder id printed on the record — loose on
+      // separators, strict on content. Khata numbers are deliberately NOT
+      // accepted here: they are short per-village serials, so an unscoped
+      // khata match would let anyone enumerate other people's records by
+      // iterating small integers — exactly the different-person lookup this
+      // module promises is impossible.
+      const id = q.bhuswamiId.replace(/[\s-]/g, "").toLowerCase();
+      matches = OFFICIAL_RECORDS.filter(
+        (r) => r.landId.replace(/-/g, "").toLowerCase() === id,
+      );
+    }
+
+    if (!matches.length) {
+      return {
+        found: false,
+        provider: "pilot_dataset",
+        isAuthoritative: false,
+        parcels: [],
+        note:
+          "No record with that identifier in the pilot record set. Details " +
+          "are recorded as supplied by the owner and verified at onboarding.",
+      };
+    }
+    return {
+      found: true,
+      provider: "pilot_dataset",
+      isAuthoritative: false,
+      parcels: matches.map(toParcelRecord),
+      note: PILOT_NOTE,
     };
   },
 };
@@ -205,7 +360,7 @@ export function authorisedStateProvider(): LandRecordsProvider | null {
 }
 
 export function getLandRecordsProvider(): LandRecordsProvider {
-  return authorisedStateProvider() ?? operatorEnteredProvider;
+  return authorisedStateProvider() ?? pilotRecordsProvider;
 }
 
 /**
@@ -214,13 +369,15 @@ export function getLandRecordsProvider(): LandRecordsProvider {
  */
 export async function lookupLandRecord(
   q: LandRecordQuery,
-  onAudit?: (entry: {
+  onAudit: (entry: {
     provider: string;
     isAuthoritative: boolean;
     found: boolean;
     identifier: string;
     identifierKind: "khasra" | "bhuswami";
     village?: string;
+    /** The consent artifact, persisted verbatim with every lookup. */
+    consent: { grantedByUserId: string; statement: string; grantedAt: string };
   }) => void,
 ): Promise<LandRecordResult> {
   if (!q.consent?.grantedByUserId || !q.consent?.statement) {
@@ -238,13 +395,18 @@ export async function lookupLandRecord(
 
   const provider = getLandRecordsProvider();
   const result = await provider.lookup(q);
-  onAudit?.({
+  onAudit({
     provider: provider.id,
     isAuthoritative: provider.isAuthoritative,
     found: result.found,
     identifier: (hasBhuswami ? q.bhuswamiId : q.khasraNumber) as string,
     identifierKind: hasBhuswami ? "bhuswami" : "khasra",
     village: q.village,
+    consent: {
+      grantedByUserId: q.consent.grantedByUserId,
+      statement: q.consent.statement,
+      grantedAt: q.consent.grantedAt,
+    },
   });
   return result;
 }

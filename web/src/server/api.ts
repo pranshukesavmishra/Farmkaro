@@ -31,8 +31,12 @@ export async function requireSession(): Promise<SessionUser> {
 }
 
 export async function limited(bucket: string, limit: number, windowMs: number): Promise<void> {
-  const ip = await clientIp();
-  if (!rateLimit(`${bucket}:${ip}`, limit, windowMs))
+  // Key on the signed-in account when there is one: X-Forwarded-For is
+  // client-controlled in many deployments, so an IP-only bucket can be
+  // rotated away by anyone who can set a header. The account id cannot.
+  const u = await currentUser();
+  const key = u ? `u:${u.id}` : `ip:${await clientIp()}`;
+  if (!rateLimit(`${bucket}:${key}`, limit, windowMs))
     throw new AuthError(429, "Too many requests. Please wait a moment.");
 }
 

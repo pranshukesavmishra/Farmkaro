@@ -15,9 +15,7 @@ import { AuthError } from "@/server/core";
  * There is intentionally no list/search endpoint beside this one, and no way
  * to query by a person's name. See src/server/connectors/land-records.ts.
  */
-const CONSENT_STATEMENT =
-  "I confirm this land is mine (or I am authorised to act for the owner) and I " +
-  "consent to FarmKaro retrieving its land record for this listing.";
+import { LAND_RECORD_CONSENT_STATEMENT as CONSENT_STATEMENT } from "@/lib/consent";
 
 export const POST = route(async (req) => {
   const user = await requireSession();
@@ -66,12 +64,21 @@ export const POST = route(async (req) => {
       found: result.found,
       provider: result.provider,
       isAuthoritative: result.isAuthoritative,
-      parcels: result.parcels,
+      // `raw` is a provider-side passthrough with no rendering surface; it
+      // never leaves the server, so an over-sharing upstream cannot leak
+      // fields nobody vetted.
+      parcels: result.parcels.map(({ raw: _raw, ...rest }) => rest),
       note: result.note ?? null,
       consentStatement: CONSENT_STATEMENT,
     });
   } catch (err) {
-    // Identifier-shape problems are user errors, not server faults.
-    throw new AuthError(400, (err as Error).message);
+    // Only identifier/consent-shape problems are the caller's fault. Anything
+    // else (a provider outage, a bug) must surface as a sanitised 500, not a
+    // 400 that echoes internal detail and invites the user to "fix" it.
+    const msg = (err as Error).message ?? "";
+    if (/identifier|khasra|bhu-swami|consent|village/i.test(msg)) {
+      throw new AuthError(400, msg);
+    }
+    throw err;
   }
 });

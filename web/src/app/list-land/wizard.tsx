@@ -22,6 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import { ParcelOverlayCard, SatelliteAttribution } from "@/components/parcel-overlay-card";
+import { LAND_RECORD_CONSENT_STATEMENT } from "@/lib/consent";
 import { JABALPUR } from "@/lib/seed";
 import { formatAcres, m2ToAcres, polygonAreaM2, type Position, type Ring } from "@/lib/geo";
 import { WATER_LABEL, ROAD_LABEL, type RoadAccess, type WaterSource } from "@/lib/types";
@@ -239,10 +240,15 @@ export function ListLandWizard() {
   // Consent-based land-record lookup for THIS parcel only. No bulk data, no
   // owner-name search: the owner names their own khasra and attests to it.
   const [recordBusy, setRecordBusy] = useState(false);
+  const [recordConsent, setRecordConsent] = useState(false);
   const [recordNote, setRecordNote] = useState<string | null>(null);
   const [recordChoices, setRecordChoices] = useState<RecordChoice[]>([]);
 
   async function fetchLandRecord(kind: "khasra" | "bhuswami") {
+    if (!recordConsent) {
+      setRecordNote("Tick the consent line first — record lookups need your recorded consent.");
+      return;
+    }
     setRecordBusy(true);
     setRecordNote(null);
     setRecordChoices([]);
@@ -258,7 +264,7 @@ export function ListLandWizard() {
           village: kind === "khasra" ? form.village : undefined,
           khasraNumber: kind === "khasra" ? form.khasra.trim() : undefined,
           bhuswamiId: kind === "bhuswami" ? form.bhuswamiId.trim() : undefined,
-          consentGiven: true,
+          consentGiven: recordConsent,
         }),
       });
       const data = await res.json();
@@ -763,6 +769,18 @@ export function ListLandWizard() {
               <section className="mt-9 max-w-2xl border-t border-line pt-7">
                 <p className="eyebrow">From the land record</p>
 
+                {/* The attestation the server records, shown verbatim and
+                    actually ticked — consent is given here, never assumed. */}
+                <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-[10px] border border-line bg-surface-2 p-3 text-sm leading-relaxed">
+                  <input
+                    type="checkbox"
+                    checked={recordConsent}
+                    onChange={(e) => setRecordConsent(e.target.checked)}
+                    className="mt-1 h-4 w-4 shrink-0 accent-[color:var(--brand)]"
+                  />
+                  <span className="text-ink-muted">{LAND_RECORD_CONSENT_STATEMENT}</span>
+                </label>
+
                 <div className="mt-4">
                   <label htmlFor="khasra" className={labelCls}>
                     Khasra number
@@ -778,7 +796,7 @@ export function ListLandWizard() {
                     />
                     <button
                       type="button"
-                      disabled={recordBusy || form.khasra.trim() === "" || form.village === ""}
+                      disabled={recordBusy || !recordConsent || form.khasra.trim() === "" || form.village === ""}
                       onClick={() => void fetchLandRecord("khasra")}
                       className="btn btn-ghost shrink-0"
                     >
@@ -806,7 +824,7 @@ export function ListLandWizard() {
                     />
                     <button
                       type="button"
-                      disabled={recordBusy || form.bhuswamiId.trim() === ""}
+                      disabled={recordBusy || !recordConsent || form.bhuswamiId.trim() === ""}
                       onClick={() => void fetchLandRecord("bhuswami")}
                       className="btn btn-ghost shrink-0"
                     >

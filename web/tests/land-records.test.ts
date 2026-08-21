@@ -10,6 +10,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import * as connector from "@/server/connectors/land-records";
 import { getLandRecordsProvider, lookupLandRecord, operatorEnteredProvider } from "@/server/connectors/land-records";
 
+const noAudit = () => {};
+
 const consent = {
   grantedByUserId: "user-1",
   statement: "I confirm this land is mine.",
@@ -41,13 +43,13 @@ describe("consent", () => {
   it("refuses a lookup with no recorded consent", async () => {
     await expect(
       // @ts-expect-error deliberately omitting consent
-      lookupLandRecord({ ...query, consent: undefined }),
+      lookupLandRecord({ ...query, consent: undefined }, noAudit),
     ).rejects.toThrow(/consent/i);
   });
 
   it("refuses a lookup whose consent has no attesting user", async () => {
     await expect(
-      lookupLandRecord({ ...query, consent: { ...consent, grantedByUserId: "" } }),
+      lookupLandRecord({ ...query, consent: { ...consent, grantedByUserId: "" } }, noAudit),
     ).rejects.toThrow(/consent/i);
   });
 
@@ -56,24 +58,29 @@ describe("consent", () => {
     await lookupLandRecord(query, (e) => seen.push(e));
     expect(seen).toHaveLength(1);
     expect(seen[0]).toMatchObject({ identifier: "214/3", identifierKind: "khasra", village: "Panagar" });
+    // The consent artifact itself is part of the audit trail, verbatim.
+    expect(seen[0]).toMatchObject({
+      consent: { grantedByUserId: "user-1", statement: consent.statement, grantedAt: consent.grantedAt },
+    });
   });
 });
 
 describe("provider selection and authority", () => {
-  it("defaults to the operator-entered provider, which is never authoritative", async () => {
+  it("defaults to the pilot record set, which is never authoritative", async () => {
     const p = getLandRecordsProvider();
-    expect(p.id).toBe("operator_entered");
+    expect(p.id).toBe("pilot_dataset");
     expect(p.isAuthoritative).toBe(false);
+    // A khasra that is not in the pilot set answers not-found, honestly.
     const res = await p.lookup(query);
     expect(res.found).toBe(false);
     expect(res.isAuthoritative).toBe(false);
     expect(res.parcels).toEqual([]);
-    expect(res.note).toMatch(/owner-supplied|not verified/i);
+    expect(res.note).toMatch(/pilot record set|owner-supplied|not verified/i);
   });
 
   it("stays on the default provider when only a URL is configured (no token = no MoU)", () => {
     process.env.LAND_RECORDS_API_URL = "https://example.test/api";
-    expect(getLandRecordsProvider().id).toBe("operator_entered");
+    expect(getLandRecordsProvider().id).toBe("pilot_dataset");
   });
 
   it("uses the authorised provider only when URL and token are both present", async () => {
@@ -118,18 +125,18 @@ describe("provider selection and authority", () => {
 describe("Bhu-Swami ID lookup", () => {
   it("requires exactly one identifier", async () => {
     await expect(
-      lookupLandRecord({ state: "MP", district: "Jabalpur", consent }),
+      lookupLandRecord({ state: "MP", district: "Jabalpur", consent }, noAudit),
     ).rejects.toThrow(/exactly one identifier/i);
     await expect(
-      lookupLandRecord({ ...query, bhuswamiId: "BS-1" }),
+      lookupLandRecord({ ...query, bhuswamiId: "BS-1" }, noAudit),
     ).rejects.toThrow(/exactly one identifier/i);
   });
 
   it("requires a village for a khasra lookup, but not for a Bhu-Swami lookup", async () => {
     await expect(
-      lookupLandRecord({ state: "MP", district: "Jabalpur", khasraNumber: "1/2", consent }),
+      lookupLandRecord({ state: "MP", district: "Jabalpur", khasraNumber: "1/2", consent }, noAudit),
     ).rejects.toThrow(/village/i);
-    await expect(lookupLandRecord(bhuswamiQuery)).resolves.toBeDefined();
+    await expect(lookupLandRecord(bhuswamiQuery, noAudit)).resolves.toBeDefined();
   });
 
   it("returns every parcel held under the ID so the owner can choose", async () => {
@@ -186,5 +193,83 @@ describe("no mass-data surface exists", () => {
   it("the default provider returns no owner name at all", async () => {
     const res = await operatorEnteredProvider.lookup(query);
     expect(res.parcels).toEqual([]);
+  });
+});
+
+describe("pilot record set", () => {
+  const base = { state: "Madhya Pradesh", district: "Jabalpur", consent };
+
+  it("finds a record by khasra + village, anchored at the village, never authoritative", async () => {
+    const res = await lookupLandRecord({ ...base, village: "Panagar", khasraNumber: "104/1" }, noAudit);
+    expect(res.found).toBe(true);
+    expect(res.isAuthoritative).toBe(false);
+    expect(res.provider).toBe("pilot_dataset");
+    const [p] = res.parcels;
+    expect(p.record?.landId).toBe("MP-JBL-PAN-10401");
+    expect(p.khataNumber).toBe("34");
+    expect(p.areaAcres).toBeCloseTo(4.55, 2);
+    expect(p.record?.areaBigha).toBeCloseTo(7.28, 1);
+    expect(p.record?.owners.map((o) => o.name)).toEqual(["Ramkumar Patel", "Suresh Patel"]);
+    // Village-precision anchor at Panagar, and it says so.
+    expect(p.location?.precision).toBe("village");
+    expect(p.location?.center[0]).toBeCloseTo(79.9944, 3);
+    expect(p.location?.center[1]).toBeCloseTo(23.2884, 3);
+    expect(p.location?.label).toMatch(/village-level/i);
+    // No fake ULPIN claim.
+    expect(p.ulpin).toBeUndefined();
+    expect(res.note).toMatch(/not a government-certified extract/i);
+  });
+
+  it("reads Devanagari digits and the Khas suffix", async () => {
+    const res = await lookupLandRecord({
+      ...base,
+      village: "पनागर खास",
+      khasraNumber: "१०४/१",
+    }, noAudit);
+    expect(res.found).toBe(true);
+    expect(res.parcels[0].record?.landId).toBe("MP-JBL-PAN-10401");
+  });
+
+  it("the same khasra in the wrong village finds nothing", async () => {
+    const res = await lookupLandRecord({ ...base, village: "Bargi", khasraNumber: "104/1" }, noAudit);
+    expect(res.found).toBe(false);
+  });
+
+  it("finds a record by its printed Land ID, however it is typed", async () => {
+    for (const id of ["MP-JBL-SIH-21502", "mp-jbl-sih-21502", "MPJBLSIH21502", "mp jbl sih 21502"]) {
+      const res = await lookupLandRecord({ ...base, bhuswamiId: id }, noAudit);
+      expect(res.found, id).toBe(true);
+      expect(res.parcels[0].village).toBe("Gosalpur");
+    }
+  });
+
+  it("refuses to resolve a bare khata number — short serials would be an enumeration oracle", async () => {
+    // Khata numbers are dense 1-3 digit per-village serials. If they resolved
+    // district-wide, iterating small integers would retrieve other people's
+    // names, shares and loan details. They must find nothing here.
+    for (const khata of ["12", "34", "41", "56", "63", "88", "104"]) {
+      const res = await lookupLandRecord({ ...base, bhuswamiId: khata }, noAudit);
+      expect(res.found, `khata ${khata}`).toBe(false);
+    }
+  });
+
+  it("surfaces encumbrance honestly — mortgage and protected tenure included", async () => {
+    const mortgaged = await lookupLandRecord({ ...base, village: "Gosalpur", khasraNumber: "215/2" }, noAudit);
+    expect(mortgaged.parcels[0].record?.encumbrance.status).toBe("mortgaged");
+    expect(mortgaged.parcels[0].record?.encumbrance.detail).toMatch(/Central Bank/);
+    const fra = await lookupLandRecord({ ...base, village: "Baghraji", khasraNumber: "145/2" }, noAudit);
+    expect(fra.parcels[0].record?.encumbrance.status).toBe("protected_tenure");
+  });
+
+  it("answers only for the pilot district — elsewhere degrades to operator-entered", async () => {
+    const res = await lookupLandRecord({
+      state: "Maharashtra",
+      district: "Nagpur",
+      village: "Panagar",
+      khasraNumber: "104/1",
+      consent,
+    }, noAudit);
+    expect(res.found).toBe(false);
+    expect(res.provider).toBe("operator_entered");
   });
 });

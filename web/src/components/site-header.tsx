@@ -4,6 +4,7 @@ import { UserMenu } from "./user-menu";
 
 const NAV = [
   { href: "/discover", label: "Discover" },
+  { href: "/records", label: "Find my land" },
   { href: "/list-land", label: "List your land" },
   { href: "/dashboard/owner", label: "Landowners" },
   { href: "/dashboard/farmer", label: "Cultivators" },

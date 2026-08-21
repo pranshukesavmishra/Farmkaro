@@ -12,6 +12,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const ROUTES = [
   ["home", "/"],
   ["discover", "/discover"],
+  ["records", "/records"],
   ["listland", "/list-land"],
   ["owner", "/dashboard/owner"],
   ["farmer", "/dashboard/farmer"],

@@ -13,7 +13,8 @@
     "verify:flows": "node scripts/verify-flows.mjs",
     "audit:mobile": "node scripts/audit-mobile.mjs",
     "audit:links": "node scripts/audit-links.mjs",
-    "verify:all": "node scripts/verify-all.mjs"
+    "verify:all": "node scripts/verify-all.mjs",
+    "verify:records": "node scripts/verify-records.mjs"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",

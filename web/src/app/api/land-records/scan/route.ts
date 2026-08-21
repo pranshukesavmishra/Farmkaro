@@ -70,7 +70,7 @@ export const POST = route(async (req) => {
     source: extraction.source,
     extraction,
     note:
-      "Details read from your document. Please check them — nothing is saved " +
+      "Details read from your document. Please check them — they are not added " +
       "until you confirm, and the copy itself is not stored.",
   });
 });
