@@ -11,7 +11,7 @@ const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 const config: NextConfig = {
   reactStrictMode: true,
-  serverExternalPackages: ["better-sqlite3"],
+  serverExternalPackages: ["better-sqlite3", "pdf-parse"],
   ...(isExport
     ? { output: "export" as const, basePath, trailingSlash: true, images: { unoptimized: true } }
     : {

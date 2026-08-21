@@ -14,6 +14,7 @@ import {
   Loader2,
   MapPin,
   MessageCircle,
+  ScanLine,
   Sprout,
   Upload,
   Zap,
@@ -194,6 +195,54 @@ export function ListLandWizard() {
       }
     }
     setRecordChoices([]);
+  }
+
+  // Upload the khasra copy and read the details off it. Everything returned is
+  // a suggestion the owner confirms; the file itself is never stored.
+  const [scanBusy, setScanBusy] = useState(false);
+
+  async function scanKhasraCopy(file: File) {
+    setScanBusy(true);
+    setRecordNote(null);
+    setRecordChoices([]);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/land-records/scan", { method: "POST", body: fd });
+      const data = await res.json();
+      if (!res.ok) {
+        setRecordNote(data.error ?? "Could not read that file.");
+        return;
+      }
+      const x = data.extraction ?? {};
+      const filled: string[] = [];
+      if (x.khasraNumber) { set("khasra", x.khasraNumber); filled.push("khasra number"); }
+      if (x.bhuswamiId) { set("bhuswamiId", x.bhuswamiId); filled.push("Bhu-Swami ID"); }
+      if (x.areaAcres) { set("declaredAcres", String(x.areaAcres)); filled.push("area"); }
+      if (x.village) {
+        const match = VILLAGE_OPTIONS.find(
+          (v) => v.name.toLowerCase() === String(x.village).toLowerCase(),
+        );
+        if (match) {
+          set("village", match.name);
+          set("tehsil", match.tehsil);
+          filled.push("village (map moved there)");
+        } else {
+          filled.push(`village "${x.village}" — pick the closest match above`);
+        }
+      }
+      if (x.ownerName && !form.ownerName) { set("ownerName", x.ownerName); filled.push("owner name"); }
+
+      setRecordNote(
+        filled.length
+          ? `Read from your copy: ${filled.join(", ")}. Please check each value — nothing is saved until you continue. Your document was not stored.`
+          : (data.note ?? "Could not find the usual fields on that copy. Please type them in."),
+      );
+    } catch {
+      setRecordNote("Could not read that file.");
+    } finally {
+      setScanBusy(false);
+    }
   }
 
   const center = useMemo<Position>(() => {
@@ -416,6 +465,28 @@ export function ListLandWizard() {
               <FileText className="h-5 w-5" />
               <h2 className="text-[18px] font-semibold">Land details</h2>
             </div>
+            <div className="sm:col-span-2 rounded-xl border border-forest-500/35 bg-forest-500/[0.05] p-3.5">
+              <p className="text-[13px] font-semibold">Have your khasra copy? Upload it.</p>
+              <p className="mt-0.5 text-[12.5px] muted">
+                We read the khasra number, village and area straight off the document and point
+                the map at it. Your copy is not stored.
+              </p>
+              <label className="focus-ring mt-2.5 inline-flex cursor-pointer items-center gap-2 rounded-full bg-forest-900 px-4 py-2 text-[13px] font-semibold text-white hover:bg-forest-700 dark:bg-forest-500">
+                {scanBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ScanLine className="h-3.5 w-3.5" />}
+                {scanBusy ? "Reading…" : "Upload khasra copy (PDF or photo)"}
+                <input
+                  type="file"
+                  accept="application/pdf,image/jpeg,image/png,image/webp"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void scanKhasraCopy(f);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+
             <div className="sm:col-span-2">
               <label htmlFor="khasra" className={labelCls}>Khasra number *</label>
               <div className="flex gap-2">
