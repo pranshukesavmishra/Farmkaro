@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { buildTileFrame, bboxOf, tileUrl, type PolygonCoords, type Position } from "@/lib/geo";
 import { cn } from "@/lib/cn";
@@ -8,32 +8,40 @@ import { cn } from "@/lib/cn";
 export interface StatPill {
   label: string;
   value: string;
-  /** Fractional position within the frame, 0–1. Kept clear of the boundary. */
+  /** Fractional position within the frame, 0–1. */
   at: { x: number; y: number };
   tone?: "default" | "accent" | "gold";
 }
 
 interface Props {
+  /** Parcel outline in GeoJSON coordinates. Used to centre the satellite view
+   *  and (only when confirmed) to draw a real boundary. */
   geometry: PolygonCoords;
-  /** Marker label suspended under the centroid pin, as in the reference imagery. */
   placeLabel?: string;
   pills?: StatPill[];
   href?: string;
   className?: string;
-  /** Larger padding pulls the camera back and shows surrounding fields. */
+  /** Camera padding: higher pulls back and shows more surrounding land. */
   pad?: number;
   rounded?: string;
   children?: React.ReactNode;
   priorityLabel?: string;
+  /**
+   * Draw the actual boundary line ONLY when it is a real, confirmed boundary.
+   * Sample parcels have no surveyed boundary, so they show a clean location pin
+   * instead of a shape that would not match the land underneath.
+   */
+  boundaryConfirmed?: boolean;
 }
 
 /**
- * ParcelOverlayCard — the platform's signature visual.
+ * ParcelOverlayCard — a real satellite view of a parcel's location.
  *
- * A live satellite tile grid sits behind the parcel's ACTUAL GeoJSON boundary,
- * projected into the same Web Mercator pixel space and stroked as a thin
- * dashed white line. Never a decorative shape: if the geometry is wrong, the
- * outline is visibly wrong, which is the point.
+ * The base is live satellite imagery (Esri World Imagery by default) centred on
+ * the parcel. A clean location pin marks it — the recognisable property-listing
+ * treatment. A dashed boundary line is drawn ONLY when `boundaryConfirmed` is
+ * true, i.e. a real surveyed/walked boundary exists; we never draw an invented
+ * outline over real land.
  */
 export function ParcelOverlayCard({
   geometry,
@@ -41,14 +49,14 @@ export function ParcelOverlayCard({
   pills = [],
   href,
   className,
-  pad = 1.38,
+  pad = 2.1,
   rounded = "rounded-2xl",
   children,
   priorityLabel,
+  boundaryConfirmed = false,
 }: Props) {
   const ref = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
-  const [drawn, setDrawn] = useState(false);
 
   useLayoutEffect(() => {
     const el = ref.current;
@@ -60,32 +68,12 @@ export function ParcelOverlayCard({
     return () => ro.disconnect();
   }, []);
 
-  useEffect(() => {
-    if (!size.w) return;
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return setDrawn(true);
-    const t = setTimeout(() => setDrawn(true), 980);
-    return () => clearTimeout(t);
-  }, [size.w]);
-
   const frame = useMemo(() => {
     if (!size.w || !size.h) return null;
     return buildTileFrame(bboxOf(geometry), size.w, size.h, pad);
   }, [geometry, size.w, size.h, pad]);
 
-  const paths = useMemo(() => {
-    if (!frame) return [];
-    return geometry.map((ring) =>
-      ring
-        .map((pt: Position, i) => {
-          const { x, y } = frame.project(pt);
-          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
-        })
-        .join(" ") + " Z",
-    );
-  }, [frame, geometry]);
-
-  const marker = useMemo(() => {
+  const center = useMemo(() => {
     if (!frame) return null;
     const ring = geometry[0] ?? [];
     if (!ring.length) return null;
@@ -93,6 +81,20 @@ export function ParcelOverlayCard({
     const lat = ring.reduce((s, p) => s + p[1], 0) / ring.length;
     return frame.project([lng, lat]);
   }, [frame, geometry]);
+
+  const boundaryPath = useMemo(() => {
+    if (!frame || !boundaryConfirmed) return null;
+    const ring = geometry[0] ?? [];
+    if (ring.length < 3) return null;
+    return (
+      ring
+        .map((pt: Position, i) => {
+          const { x, y } = frame.project(pt);
+          return `${i === 0 ? "M" : "L"}${x.toFixed(1)},${y.toFixed(1)}`;
+        })
+        .join(" ") + " Z"
+    );
+  }, [frame, geometry, boundaryConfirmed]);
 
   const body = (
     <div
@@ -103,7 +105,7 @@ export function ParcelOverlayCard({
         className,
       )}
     >
-      {/* Satellite base — real imagery of the actual land, not a stock photo. */}
+      {/* Satellite base — real imagery of the actual land on any real browser. */}
       <div className="absolute inset-0" aria-hidden>
         {frame?.tiles.map((t) => (
           // eslint-disable-next-line @next/next/no-img-element
@@ -121,18 +123,18 @@ export function ParcelOverlayCard({
         ))}
       </div>
 
-      {/* Legibility scrim, weighted to the bottom third. */}
+      {/* Legibility scrim, weighted to the bottom. */}
       <div
         className="pointer-events-none absolute inset-0"
         style={{
           background:
-            "linear-gradient(to bottom, rgba(0,20,12,.28) 0%, rgba(0,20,12,0) 32%, rgba(0,20,12,.16) 62%, rgba(0,16,10,.78) 100%)",
+            "linear-gradient(to bottom, rgba(0,20,12,.30) 0%, rgba(0,20,12,0) 34%, rgba(0,16,10,.12) 60%, rgba(0,14,9,.82) 100%)",
         }}
         aria-hidden
       />
 
-      {/* Boundary overlay */}
-      {frame && size.w > 0 && (
+      {/* Confirmed boundary (only when real) */}
+      {boundaryPath && size.w > 0 && (
         <svg
           className="pointer-events-none absolute inset-0"
           width={size.w}
@@ -140,52 +142,44 @@ export function ParcelOverlayCard({
           viewBox={`0 0 ${size.w} ${size.h}`}
           aria-hidden
         >
-          {paths.map((d, i) => (
-            <g key={i}>
-              <path
-                d={d}
-                fill="rgba(27,107,71,0.10)"
-                className="transition-[fill] duration-300 group-hover:fill-[rgba(95,163,127,0.20)]"
-              />
-              {/* shadow pass keeps the hairline readable over bright fields */}
-              <path d={d} fill="none" stroke="rgba(0,20,12,.45)" strokeWidth={3} strokeLinejoin="round" />
-              <path
-                d={d}
-                fill="none"
-                stroke="rgba(255,255,255,.92)"
-                strokeWidth={1.75}
-                strokeLinejoin="round"
-                strokeDasharray={drawn ? "6 5" : undefined}
-                className={drawn ? "" : "boundary-draw"}
-                style={drawn ? undefined : ({ "--len": 4000 } as React.CSSProperties)}
-              />
-            </g>
-          ))}
-
-          {marker && (
-            <g>
-              <line
-                x1={marker.x}
-                y1={marker.y}
-                x2={marker.x}
-                y2={marker.y + 26}
-                stroke="rgba(255,255,255,.7)"
-                strokeWidth={1}
-              />
-              <circle cx={marker.x} cy={marker.y} r={5.5} fill="rgba(255,255,255,.28)" />
-              <circle cx={marker.x} cy={marker.y} r={3} fill="#5FA37F" stroke="#fff" strokeWidth={1.2} />
-            </g>
-          )}
+          <path d={boundaryPath} fill="rgba(27,107,71,0.16)" />
+          <path d={boundaryPath} fill="none" stroke="rgba(0,20,12,.5)" strokeWidth={3} strokeLinejoin="round" />
+          <path
+            d={boundaryPath}
+            fill="none"
+            stroke="rgba(255,255,255,.92)"
+            strokeWidth={1.75}
+            strokeLinejoin="round"
+            strokeDasharray="6 5"
+          />
         </svg>
       )}
 
-      {/* Place label suspended beneath the pin */}
-      {marker && placeLabel && (
+      {/* Location pin (default: clean, property-listing style) */}
+      {center && !boundaryConfirmed && (
         <div
-          className="pointer-events-none absolute -translate-x-1/2 animate-fade-up"
-          style={{ left: marker.x, top: marker.y + 30, animationDelay: "760ms" }}
+          className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full"
+          style={{ left: center.x, top: center.y }}
         >
-          <span className="glass rounded-full px-2.5 py-1 text-[11px] font-medium tracking-wide text-white">
+          <svg width="30" height="38" viewBox="0 0 30 38" aria-hidden className="drop-shadow-[0_3px_6px_rgba(0,0,0,.55)]">
+            <path
+              d="M15 0C7 0 .8 6.2.8 14c0 9.7 12.3 22.6 13 23.3.6.6 1.7.6 2.3 0 .8-.7 13-13.6 13-23.3C29.2 6.2 23 0 15 0Z"
+              fill="#003622"
+              stroke="#fff"
+              strokeWidth="1.6"
+            />
+            <circle cx="15" cy="14" r="5.2" fill="#5FA37F" />
+          </svg>
+        </div>
+      )}
+
+      {/* Place label */}
+      {center && placeLabel && (
+        <div
+          className="pointer-events-none absolute z-10 -translate-x-1/2 animate-fade-up"
+          style={{ left: center.x, top: center.y + 6, animationDelay: "150ms" }}
+        >
+          <span className="glass whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium tracking-wide text-white">
             {placeLabel}
           </span>
         </div>
@@ -196,18 +190,16 @@ export function ParcelOverlayCard({
         pills.map((p, i) => (
           <div
             key={p.label}
-            className="pointer-events-none absolute animate-fade-up"
+            className="pointer-events-none absolute z-10 animate-fade-up"
             style={{
               left: `${p.at.x * 100}%`,
               top: `${p.at.y * 100}%`,
               transform: "translate(-50%,-50%)",
-              animationDelay: `${900 + i * 110}ms`,
+              animationDelay: `${180 + i * 90}ms`,
             }}
           >
             <div className="glass flex items-center gap-2 rounded-xl px-2.5 py-1.5 shadow-lg">
-              <span className="text-[10px] font-medium uppercase tracking-[0.09em] text-white/62">
-                {p.label}
-              </span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.09em] text-white/62">{p.label}</span>
               <span
                 className={cn(
                   "font-mono text-[12px] font-semibold tabular-nums",
@@ -221,14 +213,14 @@ export function ParcelOverlayCard({
         ))}
 
       {priorityLabel && (
-        <div className="pointer-events-none absolute left-3 top-3">
+        <div className="pointer-events-none absolute left-3 top-3 z-10">
           <span className="glass rounded-full px-2.5 py-1 text-[10.5px] font-semibold uppercase tracking-[0.1em] text-white">
             {priorityLabel}
           </span>
         </div>
       )}
 
-      {children && <div className="absolute inset-x-0 bottom-0">{children}</div>}
+      {children && <div className="absolute inset-x-0 bottom-0 z-10">{children}</div>}
     </div>
   );
 
@@ -244,7 +236,7 @@ export function ParcelOverlayCard({
 export function SatelliteAttribution({ className }: { className?: string }) {
   return (
     <p className={cn("text-[10.5px] muted", className)}>
-      Satellite imagery: Esri World Imagery. Boundaries are owner-supplied unless marked otherwise.
+      Satellite imagery: Esri World Imagery. Location shown; surveyed boundaries appear once confirmed.
     </p>
   );
 }

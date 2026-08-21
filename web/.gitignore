@@ -3,3 +3,6 @@ node_modules/
 .next/
 out/
 tsconfig.tsbuildinfo
+
+# Local env (keeps the fake dev-tile URL out of deploys)
+.env*.local

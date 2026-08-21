@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { List, Map as MapIcon, SearchX, X } from "lucide-react";
-import { MapLegend, ParcelMap } from "@/components/parcel-map";
+import { DiscoveryMap, MapLegend } from "@/components/discovery-map";
 import { ParcelCard, ParcelCardSkeleton } from "@/components/parcel-card";
 import { MatchScore } from "@/components/match-score";
 import { EmptyState } from "@/components/ui";
@@ -312,7 +312,7 @@ export function DiscoverClient() {
             view === "list" && "hidden lg:flex",
           )}
         >
-          <ParcelMap
+          <DiscoveryMap
             parcels={parcels}
             selectedId={selectedId}
             onSelect={handleMapSelect}

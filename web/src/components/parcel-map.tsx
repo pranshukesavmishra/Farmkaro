@@ -3,41 +3,23 @@
 import { useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { SATELLITE_TILE_URL, type Position } from "@/lib/geo";
+import { SATELLITE_TILE_URL, formatINR, type Position } from "@/lib/geo";
 import type { ParcelView } from "@/lib/types";
-import { Layers, Loader2, LocateFixed, Maximize2 } from "lucide-react";
+import { Layers, Loader2, LocateFixed } from "lucide-react";
 
 /**
- * Parcel map.
+ * Parcel map — real satellite imagery with clean price markers.
  *
- * Farmland is drawn as real polygons, never as pins — the boundary is the
- * information. Only features for the current viewport are rendered, and the
- * layer is styled so the imagery stays the dominant element on screen.
+ * Land is shown as recognisable property-style markers (a rent-labelled pill
+ * over a pin) at each parcel's real location — not invented polygons. Only the
+ * search radius is drawn as a shape, because that is a real, meaningful circle.
+ * Markers are plain HTML so they stay crisp and easy to style.
  */
 
-const SRC = "parcels";
 const SRC_RADIUS = "radius";
+const SRC_SELECTED = "selected-parcel";
 
-function toFeatureCollection(parcels: ParcelView[]): GeoJSON.FeatureCollection {
-  return {
-    type: "FeatureCollection",
-    features: parcels.map((p) => ({
-      type: "Feature",
-      id: Number(p.id.replace(/\D/g, "")) || 0,
-      properties: {
-        id: p.id,
-        ref: p.ref,
-        village: p.village,
-        acres: +p.areaAcres.toFixed(2),
-        rent: p.listing.rentAnnual,
-        walked:
-          p.geometryStatus === "boundary_walked_by_farmkaro" ||
-          p.geometryStatus === "matched_to_cadastral_record",
-      },
-      geometry: { type: "Polygon", coordinates: p.geometry },
-    })),
-  };
-}
+const compactRent = (n: number) => formatINR(n, { compact: true });
 
 /** Circle approximation for the search radius, in true metres. */
 function radiusPolygon(center: Position, km: number, steps = 96): GeoJSON.Feature {
@@ -63,7 +45,8 @@ interface Props {
 export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, className }: Props) {
   const holder = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
-  const hovered = useRef<number | null>(null);
+  const markers = useRef<Map<string, maplibregl.Marker>>(null!);
+  if (!markers.current) markers.current = new Map();
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -84,7 +67,7 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
           },
         },
         layers: [
-          { id: "bg", type: "background", paint: { "background-color": "#001A10" } },
+          { id: "bg", type: "background", paint: { "background-color": "#0d1a12" } },
           { id: "satellite", type: "raster", source: "satellite" },
         ],
       },
@@ -110,125 +93,90 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
         id: "radius-line",
         type: "line",
         source: SRC_RADIUS,
-        paint: {
-          "line-color": "#5FA37F",
-          "line-width": 1.2,
-          "line-dasharray": [3, 3],
-          "line-opacity": 0.75,
-        },
+        paint: { "line-color": "#5FA37F", "line-width": 1.2, "line-dasharray": [3, 3], "line-opacity": 0.8 },
       });
 
-      m.addSource(SRC, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
-
+      // Selected parcel's real boundary — drawn on top of the satellite when a
+      // farm is chosen, so pins (discovery) and polygon (detail) work together.
+      m.addSource(SRC_SELECTED, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       m.addLayer({
-        id: "parcel-fill",
+        id: "sel-fill",
         type: "fill",
-        source: SRC,
-        paint: {
-          "fill-color": [
-            "case",
-            ["boolean", ["feature-state", "selected"], false], "#C9A24B",
-            ["boolean", ["feature-state", "hover"], false], "#8FCBA9",
-            ["get", "walked"], "#1B6B47",
-            "#5FA37F",
-          ],
-          "fill-opacity": [
-            "case",
-            ["boolean", ["feature-state", "selected"], false], 0.34,
-            ["boolean", ["feature-state", "hover"], false], 0.26,
-            0.14,
-          ],
-        },
+        source: SRC_SELECTED,
+        paint: { "fill-color": "#C9A24B", "fill-opacity": 0.18 },
       });
-
-      // Shadow pass keeps the hairline legible over bright fields.
       m.addLayer({
-        id: "parcel-line-shadow",
+        id: "sel-line-shadow",
         type: "line",
-        source: SRC,
-        paint: { "line-color": "rgba(0,20,12,0.5)", "line-width": 3.2 },
+        source: SRC_SELECTED,
+        paint: { "line-color": "rgba(0,20,12,.55)", "line-width": 3.5 },
       });
-
       m.addLayer({
-        id: "parcel-line",
+        id: "sel-line",
         type: "line",
-        source: SRC,
-        paint: {
-          "line-color": [
-            "case",
-            ["boolean", ["feature-state", "selected"], false], "#F2D89A",
-            "rgba(255,255,255,0.92)",
-          ],
-          "line-width": [
-            "case",
-            ["boolean", ["feature-state", "selected"], false], 2.4,
-            ["boolean", ["feature-state", "hover"], false], 2,
-            1.5,
-          ],
-          "line-dasharray": [5, 4],
-        },
+        source: SRC_SELECTED,
+        paint: { "line-color": "#F2D89A", "line-width": 2, "line-dasharray": [4, 3] },
       });
 
-      m.on("mousemove", "parcel-fill", (e) => {
-        m.getCanvas().style.cursor = "pointer";
-        const f = e.features?.[0];
-        if (!f || f.id === hovered.current) return;
-        if (hovered.current != null) {
-          m.setFeatureState({ source: SRC, id: hovered.current }, { hover: false });
-        }
-        hovered.current = f.id as number;
-        m.setFeatureState({ source: SRC, id: hovered.current }, { hover: true });
-      });
-
-      m.on("mouseleave", "parcel-fill", () => {
-        m.getCanvas().style.cursor = "";
-        if (hovered.current != null) {
-          m.setFeatureState({ source: SRC, id: hovered.current }, { hover: false });
-        }
-        hovered.current = null;
-      });
-
-      m.on("click", "parcel-fill", (e) => {
-        const id = e.features?.[0]?.properties?.id;
-        if (id) onSelect?.(String(id));
-      });
-
-      m.on("click", (e) => {
-        const hits = m.queryRenderedFeatures(e.point, { layers: ["parcel-fill"] });
-        if (!hits.length) onSelect?.(null);
-      });
-
+      // Click on empty map deselects.
+      m.on("click", () => onSelect?.(null));
       setReady(true);
     });
 
     return () => {
+      markers.current.forEach((mk) => mk.remove());
+      markers.current.clear();
       m.remove();
       map.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Data updates
+  // Markers: one price pill per parcel, reconciled on each data change.
   useEffect(() => {
     const m = map.current;
     if (!m || !ready) return;
-    const src = m.getSource(SRC) as maplibregl.GeoJSONSource | undefined;
-    if (!src) return;
-    const fc = toFeatureCollection(parcels);
-    src.setData(fc);
 
-    if (fc.features.length) {
-      const b = new maplibregl.LngLatBounds();
-      for (const f of fc.features) {
-        for (const ring of (f.geometry as GeoJSON.Polygon).coordinates) {
-          for (const c of ring) b.extend(c as [number, number]);
-        }
+    const wanted = new Set(parcels.map((p) => p.id));
+    // Remove stale markers.
+    for (const [id, mk] of markers.current) {
+      if (!wanted.has(id)) {
+        mk.remove();
+        markers.current.delete(id);
       }
-      m.fitBounds(b, { padding: 64, maxZoom: 14, duration: 650 });
     }
-  }, [parcels, ready]);
 
-  // Radius ring
+    for (const p of parcels) {
+      let mk = markers.current.get(p.id);
+      if (!mk) {
+        const el = document.createElement("button");
+        el.type = "button";
+        el.dataset.id = p.id;
+        el.setAttribute("aria-label", `${p.village}, ${formatINR(p.listing.rentAnnual)} per year`);
+        el.className = "fk-marker";
+        el.innerHTML = `<span class="fk-marker-pill">${compactRent(p.listing.rentAnnual)}</span><span class="fk-marker-tip"></span>`;
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          onSelect?.(p.id);
+        });
+        el.addEventListener("mouseenter", () => el.classList.add("is-hover"));
+        el.addEventListener("mouseleave", () => el.classList.remove("is-hover"));
+        mk = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat(p.centroid).addTo(m);
+        markers.current.set(p.id, mk);
+      } else {
+        mk.setLngLat(p.centroid);
+      }
+    }
+
+    // Fit to the markers.
+    if (parcels.length) {
+      const b = new maplibregl.LngLatBounds();
+      for (const p of parcels) b.extend(p.centroid as [number, number]);
+      m.fitBounds(b, { padding: 70, maxZoom: 13.5, duration: 650 });
+    }
+  }, [parcels, ready, onSelect]);
+
+  // Radius ring.
   useEffect(() => {
     const m = map.current;
     if (!m || !ready) return;
@@ -241,26 +189,31 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
     );
   }, [center, radiusKm, ready]);
 
-  // Selection
-  const prevSelected = useRef<number | null>(null);
+  // Selection styling + boundary + recentre.
   useEffect(() => {
     const m = map.current;
     if (!m || !ready) return;
-    if (prevSelected.current != null) {
-      m.setFeatureState({ source: SRC, id: prevSelected.current }, { selected: false });
-      prevSelected.current = null;
+    for (const [id, mk] of markers.current) {
+      mk.getElement().classList.toggle("is-selected", id === selectedId);
     }
-    if (!selectedId) return;
-    const numeric = Number(selectedId.replace(/\D/g, "")) || 0;
-    m.setFeatureState({ source: SRC, id: numeric }, { selected: true });
-    prevSelected.current = numeric;
-
-    const target = parcels.find((p) => p.id === selectedId);
-    if (target) m.easeTo({ center: target.centroid, zoom: Math.max(m.getZoom(), 13.4), duration: 600 });
+    const sel = m.getSource(SRC_SELECTED) as maplibregl.GeoJSONSource | undefined;
+    const target = selectedId ? parcels.find((p) => p.id === selectedId) : null;
+    if (sel) {
+      sel.setData(
+        target
+          ? {
+              type: "FeatureCollection",
+              features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: target.geometry } }],
+            }
+          : { type: "FeatureCollection", features: [] },
+      );
+    }
+    if (target) m.easeTo({ center: target.centroid, zoom: Math.max(m.getZoom(), 14), duration: 600 });
   }, [selectedId, ready, parcels]);
 
   return (
     <div className={className}>
+      <style>{MARKER_CSS}</style>
       <div ref={holder} className="h-full w-full" />
       {!ready && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-forest-950/70">
@@ -273,7 +226,7 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
         <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap items-center gap-1.5">
           <span className="glass flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium text-white">
             <Layers className="h-3 w-3" aria-hidden />
-            {parcels.length} parcel{parcels.length === 1 ? "" : "s"} in view
+            {parcels.length} farm{parcels.length === 1 ? "" : "s"} in view
           </span>
           {radiusKm && center && (
             <span className="glass flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium text-white">
@@ -287,23 +240,39 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
   );
 }
 
+const MARKER_CSS = `
+.fk-marker { position: relative; display: flex; flex-direction: column; align-items: center; cursor: pointer; background: none; border: 0; padding: 0; transform-origin: bottom center; transition: transform .15s ease; }
+.fk-marker.is-hover { transform: scale(1.06); z-index: 5; }
+.fk-marker.is-selected { z-index: 6; }
+.fk-marker-pill {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px; font-weight: 600; line-height: 1;
+  color: #fff; background: #003622; border: 1.5px solid rgba(255,255,255,.9);
+  padding: 5px 9px; border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.45);
+  white-space: nowrap;
+}
+.fk-marker.is-selected .fk-marker-pill { background: #C9A24B; color: #1a1405; border-color: #fff; }
+.fk-marker.is-hover .fk-marker-pill { background: #0B4A32; }
+.fk-marker-tip { width: 2px; height: 8px; background: rgba(255,255,255,.85); box-shadow: 0 1px 3px rgba(0,0,0,.5); }
+.fk-marker.is-selected .fk-marker-tip { background: #C9A24B; }
+`;
+
 export function MapLegend() {
   return (
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11.5px] muted">
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-2.5 w-4 rounded-[2px] border border-dashed border-white/80 bg-forest-500/30" />
-        Boundary walked by FarmKaro
+        <span className="inline-flex h-5 items-center rounded-full bg-forest-900 px-2 font-mono text-[10px] font-semibold text-white">
+          ₹48k
+        </span>
+        Annual rent · tap to open
       </span>
       <span className="inline-flex items-center gap-1.5">
-        <span className="h-2.5 w-4 rounded-[2px] border border-dashed border-white/60 bg-forest-300/25" />
-        Owner-supplied boundary
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span className="h-2.5 w-4 rounded-[2px] border border-dashed border-gold bg-gold/30" />
+        <span className="inline-flex h-5 items-center rounded-full bg-gold px-2 font-mono text-[10px] font-semibold text-[#1a1405]">
+          ₹48k
+        </span>
         Selected
       </span>
     </div>
   );
 }
-
-export { Maximize2 };

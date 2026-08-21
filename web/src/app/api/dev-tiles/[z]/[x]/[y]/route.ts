@@ -24,10 +24,16 @@ function rng(seed: number) {
   };
 }
 
+// Earth-toned aerial-farmland palette: cropland greens, ripening/harvested
+// ochres, ploughed-earth browns, and a few bare/sandy patches — the mix real
+// satellite shows over an agricultural district, not flat lawn-green blocks.
 const FIELD_TONES: [number, number, number][] = [
-  [0x4a, 0x5c, 0x33], [0x5c, 0x6f, 0x3c], [0x6b, 0x7c, 0x45], [0x7d, 0x8a, 0x4e],
-  [0x8d, 0x94, 0x55], [0x3f, 0x52, 0x30], [0x55, 0x67, 0x3a], [0x6f, 0x7f, 0x4a],
-  [0x94, 0xa0, 0x5f], [0xa8, 0xac, 0x74], [0x3a, 0x4a, 0x2c], [0x63, 0x73, 0x41],
+  [0x4a, 0x5c, 0x33], [0x5c, 0x6f, 0x3c], [0x6b, 0x7c, 0x45], // crop greens
+  [0x86, 0x8f, 0x50], [0x9b, 0x9a, 0x5a], // maturing
+  [0xb6, 0xa9, 0x6b], [0xc7, 0xb4, 0x77], [0xd0, 0xbd, 0x88], // ripe/harvested ochre
+  [0x9c, 0x7f, 0x54], [0x8a, 0x6d, 0x47], [0x77, 0x5e, 0x3e], // ploughed earth
+  [0x3a, 0x4a, 0x2c], [0x2f, 0x3f, 0x26], // dark vegetation
+  [0xbf, 0xb0, 0x8a], // bare/sandy
 ];
 
 const SIZE = 256;
@@ -99,7 +105,8 @@ function paintTile(seed: number): Buffer {
     }
   };
 
-  // Irregular field strips, the way cadastral farmland actually reads from above.
+  // Irregular field strips, the way cadastral farmland reads from above, each
+  // with subtle within-field noise so it looks textured rather than posterised.
   let yCursor = -20;
   while (yCursor < SIZE) {
     const h = 26 + r() * 62;
@@ -107,10 +114,57 @@ function paintTile(seed: number): Buffer {
     while (xCursor < SIZE) {
       const w = 34 + r() * 90;
       const tone = FIELD_TONES[Math.floor(r() * FIELD_TONES.length)];
-      fillRect(xCursor, yCursor, w + 1, h + 1, tone);
+      const xa = Math.max(0, Math.floor(xCursor));
+      const ya = Math.max(0, Math.floor(yCursor));
+      const xb = Math.min(SIZE, Math.ceil(xCursor + w + 1));
+      const yb = Math.min(SIZE, Math.ceil(yCursor + h + 1));
+      for (let y = ya; y < yb; y++) {
+        for (let x = xa; x < xb; x++) {
+          const n = (r() - 0.5) * 22; // grain
+          const i = (y * SIZE + x) * 3;
+          px[i] = Math.max(0, Math.min(255, tone[0] + n)) | 0;
+          px[i + 1] = Math.max(0, Math.min(255, tone[1] + n)) | 0;
+          px[i + 2] = Math.max(0, Math.min(255, tone[2] + n * 0.7)) | 0;
+        }
+      }
       xCursor += w;
     }
     yCursor += h;
+  }
+
+  // Tree clusters / orchards: small dark-green stipple blobs.
+  const blend = (x: number, y: number, c: [number, number, number], a: number) => {
+    if (x < 0 || x >= SIZE || y < 0 || y >= SIZE) return;
+    const i = (y * SIZE + x) * 3;
+    px[i] = (px[i] * (1 - a) + c[0] * a) | 0;
+    px[i + 1] = (px[i + 1] * (1 - a) + c[1] * a) | 0;
+    px[i + 2] = (px[i + 2] * (1 - a) + c[2] * a) | 0;
+  };
+  const clusters = 2 + Math.floor(r() * 4);
+  for (let c = 0; c < clusters; c++) {
+    const cx = r() * SIZE;
+    const cy = r() * SIZE;
+    const rad = 10 + r() * 26;
+    const dots = 30 + Math.floor(r() * 60);
+    for (let d = 0; d < dots; d++) {
+      const ang = r() * Math.PI * 2;
+      const rr = r() * rad;
+      const x = Math.round(cx + Math.cos(ang) * rr);
+      const y = Math.round(cy + Math.sin(ang) * rr);
+      const shade: [number, number, number] = r() > 0.5 ? [0x2a, 0x3d, 0x22] : [0x1f, 0x30, 0x1a];
+      blend(x, y, shade, 0.75);
+      blend(x + 1, y, shade, 0.4);
+    }
+  }
+
+  // A dirt track crossing the tile.
+  {
+    const y0 = r() * SIZE;
+    const slope = (r() - 0.5) * 1.2;
+    for (let x = 0; x < SIZE; x++) {
+      const yc = y0 + slope * (x - SIZE / 2) + Math.sin(x / 40) * 4;
+      for (let dy = -1; dy <= 1; dy++) blend(x, Math.round(yc) + dy, [0xb9, 0xa7, 0x82], dy === 0 ? 0.6 : 0.3);
+    }
   }
 
   // Field bunds for texture: soft wavy horizontal lines, alpha-blended.

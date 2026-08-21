@@ -78,7 +78,11 @@ export default async function ParcelPage({ params }: { params: Promise<{ id: str
         <ParcelOverlayCard
           geometry={p.geometry}
           placeLabel={`${p.village}, ${p.tehsil}`}
-          pad={1.6}
+          boundaryConfirmed={
+            p.geometryStatus === "boundary_walked_by_farmkaro" ||
+            p.geometryStatus === "matched_to_cadastral_record"
+          }
+          pad={1.9}
           pills={[
             { label: "Area", value: `${formatAcres(p.areaAcres)} ac`, at: { x: 0.14, y: 0.12 } },
             { label: "Water", value: WATER_LABEL[p.waterSources[0]], at: { x: 0.86, y: 0.14 } },

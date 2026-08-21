@@ -79,7 +79,7 @@ export default async function HomePage() {
           </h1>
           <p className="mt-4 text-[15.5px] leading-[1.6] muted sm:text-[16.5px]">
             Registered, non-tenancy-creating leases on verified parcels in the Jabalpur pilot
-            district — real boundaries, honest document status, and end-date certainty for both
+            district — real locations on satellite, honest document status, and end-date certainty for both
             sides.
           </p>
           <p className="mt-3 text-[15px] font-medium text-forest-700 dark:text-forest-300">
@@ -157,7 +157,7 @@ export default async function HomePage() {
       {/* Nearby parcels */}
       <Section
         title="Explore farmland near Jabalpur"
-        description="Active listings within 50 km of the district centre, drawn with their real boundaries."
+        description="Active listings within 50 km of the district centre, on real satellite imagery."
         action={
           <Link
             href="/discover"
