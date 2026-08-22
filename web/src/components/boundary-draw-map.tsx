@@ -8,12 +8,14 @@ import {
   haversineM,
   m2ToAcres,
   polygonAreaM2,
+  ringSelfIntersects,
   SATELLITE_TILE_URL,
   type Position,
   type Ring,
 } from "@/lib/geo";
 import { suggestBoundary } from "@/lib/boundary-suggest";
 import { adaptCometToImagery, addCometLayers, startCometOrbit } from "@/lib/comet";
+import { HI_TILE_PROTOCOL, registerSharpTiles } from "@/lib/sharp-tiles";
 import { useLang } from "@/lib/i18n";
 import { Loader2, MousePointerClick, Redo2, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -149,6 +151,13 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   const [points, setPoints] = useState<Position[]>(value ?? []);
   const [redoStack, setRedoStack] = useState<Position[][]>([]);
   const [ready, setReady] = useState(false);
+  // Drawing vs editing: while drawing, every click adds a dot and the rubber
+  // band follows the cursor. A right-click (or tapping the first dot) with
+  // 3+ corners FINISHES the shape — clicks stop adding dots, and clicking on
+  // the line itself inserts a new dot there for fine adjustment.
+  const [done, setDone] = useState((value?.length ?? 0) >= 3);
+  const doneRef = useRef(done);
+  doneRef.current = done;
   // AI assist: idle -> awaiting a tap (when no points exist yet) -> busy
   // while it reads the imagery and animates the corners in.
   const [ai, setAi] = useState<"idle" | "await-tap" | "busy">("idle");
@@ -184,7 +193,11 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   // The marked area's fill — pickable from a minimal swatch row.
   const [fillColor, setFillColor] = useState("#5FA37F");
 
-  const areaAcres = points.length >= 3 ? m2ToAcres(polygonAreaM2([[...points, points[0]]])) : 0;
+  // A crossed (bow-tie) ring has no meaningful area — refuse to quote one
+  // and keep the wizard blocked until the dots are untangled.
+  const crossed = points.length >= 4 && ringSelfIntersects(points);
+  const areaAcres =
+    points.length >= 3 && !crossed ? m2ToAcres(polygonAreaM2([[...points, points[0]]])) : 0;
 
   // Emit through a ref with a change guard: the parent's onChange is a fresh
   // function every render, and emitting unconditionally from the render
@@ -197,7 +210,7 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     const key = pts.map((p) => `${p[0].toFixed(7)},${p[1].toFixed(7)}`).join(";");
     if (key === lastEmitRef.current) return;
     lastEmitRef.current = key;
-    if (pts.length >= 3)
+    if (pts.length >= 3 && !ringSelfIntersects(pts))
       onChangeRef.current([...pts, pts[0]], m2ToAcres(polygonAreaM2([[...pts, pts[0]]])));
     else onChangeRef.current([], 0);
   }, []);
@@ -266,6 +279,7 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         staggerRef.current = true;
         setPoints(ring);
       }
+      setDone(true); // the AI delivers a complete ring — straight to editing
       setAi("idle");
       setAiNote(
         "FarmSelect AI traced your field from the imagery — drag any dot to fine-tune it. It stays owner-drawn until FarmKaro walks the boundary.",
@@ -303,6 +317,7 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   // --- map bootstrap ---------------------------------------------------------
   useEffect(() => {
     if (!holder.current || map.current) return;
+    registerSharpTiles();
     const m = new maplibregl.Map({
       container: holder.current,
       attributionControl: false,
@@ -316,12 +331,12 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             maxzoom: 18,
             attribution: "Satellite imagery © Esri",
           },
-          // Sharper close-ups: the same tile tree asked for level 19. Where
-          // the provider has 19 the blur clears; where it hasn't, the tile
-          // request fails silently and the overzoomed base below still shows.
+          // Sharper close-ups: the same tile tree asked for level 19, routed
+          // through a filter that swallows the provider's grey "no data"
+          // placeholder tiles — the overzoomed base always shows through.
           "satellite-hi": {
             type: "raster",
-            tiles: [SATELLITE_TILE_URL],
+            tiles: [`${HI_TILE_PROTOCOL}://${SATELLITE_TILE_URL}`],
             tileSize: 256,
             minzoom: 18,
             maxzoom: 19,
@@ -456,18 +471,71 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         return;
       }
       if (aiRef.current === "busy") return;
+
+      const pts = pointsRef.current;
+      if (doneRef.current) {
+        // Editing mode: a click ON the line splits that edge with a new dot
+        // right there; clicks elsewhere change nothing.
+        if (pts.length >= 3) {
+          const px = pts.map((p) => m.project(p as [number, number]));
+          let best = -1;
+          let bestD = 9;
+          for (let i = 0; i < px.length; i++) {
+            const a = px[i];
+            const b = px[(i + 1) % px.length];
+            const abx = b.x - a.x;
+            const aby = b.y - a.y;
+            const len2 = abx * abx + aby * aby || 1;
+            const t = Math.max(0, Math.min(1, ((e.point.x - a.x) * abx + (e.point.y - a.y) * aby) / len2));
+            const d = Math.hypot(e.point.x - (a.x + abx * t), e.point.y - (a.y + aby * t));
+            if (d < bestD) {
+              bestD = d;
+              best = i;
+            }
+          }
+          if (best >= 0) {
+            setRedoStack((r) => [...r, pts]);
+            setPoints((prev) => [
+              ...prev.slice(0, best + 1),
+              [e.lngLat.lng, e.lngLat.lat],
+              ...prev.slice(best + 1),
+            ]);
+          }
+        }
+        return;
+      }
+
+      // Drawing mode. Tapping the FIRST dot with 3+ corners finishes.
+      if (pts.length >= 3) {
+        const first = m.project(pts[0] as [number, number]);
+        if (Math.hypot(e.point.x - first.x, e.point.y - first.y) < 14) {
+          setDone(true);
+          return;
+        }
+      }
       setRedoStack([]);
       setPoints((prev) => [...prev, [e.lngLat.lng, e.lngLat.lat]]);
     });
 
+    // Right-click finishes the shape (with 3+ corners) instead of the
+    // browser menu — the answer to "it never stops selecting".
+    m.on("contextmenu", (e) => {
+      e.preventDefault();
+      if (pointsRef.current.length >= 3 && !doneRef.current) setDone(true);
+    });
+
     // Double-click anywhere on the land: FarmSelect AI scans that spot
-    // directly. The double-click's own pair of click events has just dropped
-    // two stray dots — remove them before the scan takes over.
+    // directly. In drawing mode the double-click's own pair of click events
+    // has just dropped two stray dots — remove them before the scan takes
+    // over. In editing mode those clicks added nothing to the end, so
+    // stripping would eat real corners.
     m.on("dblclick", (e) => {
       e.preventDefault();
       if (aiRef.current === "busy") return;
-      setPoints((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
-      pointsRef.current = pointsRef.current.slice(0, Math.max(0, pointsRef.current.length - 2));
+      if (!doneRef.current) {
+        setPoints((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
+        pointsRef.current = pointsRef.current.slice(0, Math.max(0, pointsRef.current.length - 2));
+      }
       void runSuggestRef.current(e.point.x, e.point.y);
     });
 
@@ -476,7 +544,7 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       const src = m.getSource(RUBBER_SRC) as maplibregl.GeoJSONSource | undefined;
       if (!src) return;
       const pts = pointsRef.current;
-      if (!engagedRef.current || aiRef.current !== "idle" || pts.length < 1) {
+      if (!engagedRef.current || doneRef.current || aiRef.current !== "idle" || pts.length < 1) {
         src.setData(EMPTY_FC);
         rubberTipRef.current?.({ visible: false, x: 0, y: 0, meters: 0 });
         return;
@@ -564,10 +632,39 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     }
   }, [fillColor, ready]);
 
-  // Once the boundary closes, exactly one thing moves: a soft light orbiting
-  // the solid line — the Apple-style selection. Hidden while the AI trace
-  // owns the line; never started under reduced motion.
-  const closed = points.length >= 3;
+  // Once the boundary is FINISHED, exactly one thing moves: a soft light
+  // orbiting the solid line — plus a slow breathing shade inside it. A
+  // crossed ring gets neither: celebration would endorse broken geometry.
+  const closed = points.length >= 3 && !crossed && done;
+
+  // The animated shade: the selected area's fill breathes gently between
+  // two opacities. Decorative only; reduced motion keeps it still.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready || !closed) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    const t0 = performance.now();
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      try {
+        if (!m.style || !m.getLayer("draw-fill")) return;
+        const phase = (Math.sin((now - t0) / 1400) + 1) / 2; // 0..1, ~8.8s lap
+        m.setPaintProperty("draw-fill", "fill-opacity", 0.16 + phase * 0.14);
+      } catch {
+        /* torn down */
+      }
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      try {
+        if (m.style && m.getLayer("draw-fill")) m.setPaintProperty("draw-fill", "fill-opacity", 0.22);
+      } catch {
+        /* gone */
+      }
+    };
+  }, [ready, closed]);
   useEffect(() => {
     const m = map.current;
     if (!m || !ready || !closed) return;
@@ -605,10 +702,20 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     }
     src.setData({ type: "FeatureCollection", features });
 
-    // In-progress path is dashed; a closed boundary is a clean solid line
-    // (the orbiting light is its only motion).
+    // In-progress path is dashed; a FINISHED boundary is a clean solid line
+    // (the orbiting light is its only motion). A crossed ring turns amber.
     if (m.getLayer("draw-line")) {
-      m.setPaintProperty("draw-line", "line-dasharray", points.length >= 3 ? [1, 0] : [5, 4]);
+      m.setPaintProperty(
+        "draw-line",
+        "line-dasharray",
+        points.length >= 3 && doneRef.current ? [1, 0] : [5, 4],
+      );
+      const crossedNow = points.length >= 4 && ringSelfIntersects(points);
+      m.setPaintProperty(
+        "draw-line",
+        "line-color",
+        crossedNow ? "rgba(224,169,79,.95)" : "rgba(255,255,255,.95)",
+      );
     }
 
     // Vertex handles as draggable markers. A fine AI outline has many points,
@@ -621,11 +728,18 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       const el = document.createElement("button");
       el.type = "button";
       el.className = fine ? "fk-vertex fk-vertex--fine" : "fk-vertex";
+      // While drawing, the first dot glows gold — tap it to close the shape.
+      if (!doneRef.current && i === 0 && points.length >= 3) el.classList.add("fk-vertex--first");
       if (stagger) el.style.animationDelay = `${Math.min(i * 22, 950)}ms`;
       el.setAttribute("aria-label", `Vertex ${i + 1} — drag to adjust, double-tap to remove`);
       // A click on a dot is the dot's own business — without this it bubbles
-      // to the map and drops a stray new dot at the same spot.
-      el.addEventListener("click", (ev) => ev.stopPropagation());
+      // to the map and drops a stray new dot at the same spot. Tapping the
+      // FIRST dot while drawing closes the shape (the map never sees this
+      // click, so the close must live here).
+      el.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        if (!doneRef.current && i === 0 && pointsRef.current.length >= 3) setDone(true);
+      });
       // Double-tap a dot to remove just that corner.
       el.addEventListener("dblclick", (ev) => {
         ev.stopPropagation();
@@ -641,9 +755,10 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     });
 
     emit(points);
-  }, [points, ready, emit]);
+  }, [points, ready, emit, done]);
 
   const undo = () => {
+    setDone(false); // removing a corner reopens the drawing
     setPoints((prev) => {
       if (!prev.length) return prev;
       setRedoStack((r) => [...r, prev]);
@@ -658,6 +773,7 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     });
   };
   const clear = () => {
+    setDone(false);
     setRedoStack((r) => (points.length ? [...r, points] : r));
     setPoints([]);
   };
@@ -713,15 +829,29 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         </div>
       )}
 
+      {engaged && !done && !crossed && points.length >= 3 && !aiNote && (
+        <div className="pointer-events-none absolute inset-x-3 bottom-12 z-10 flex justify-center">
+          <p className="glass animate-fade-up rounded-full px-3.5 py-1.5 text-center text-[12px] text-white/85">
+            {t("Right-click or tap the gold first dot to finish")}
+          </p>
+        </div>
+      )}
+
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <div className="glass pointer-events-auto rounded-xl px-3 py-2">
           <p className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-white/65">
-            {points.length < 3 ? t("Tap the corners of your field") : t("Estimated area")}
+            {points.length < 3
+              ? t("Tap the corners of your field")
+              : crossed
+                ? t("Boundary crosses itself")
+                : t("Estimated area")}
           </p>
           <p className="font-mono text-[17px] font-semibold tabular-nums text-white">
             {points.length < 3
               ? `${points.length} ${t(points.length === 1 ? "point placed" : "points placed")}`
-              : `${areaAcres.toFixed(2)} ${t("acres")}`}
+              : crossed
+                ? t("Drag the dots apart")
+                : `${areaAcres.toFixed(2)} ${t("acres")}`}
           </p>
         </div>
 

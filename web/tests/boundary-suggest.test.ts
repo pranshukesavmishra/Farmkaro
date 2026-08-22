@@ -12,6 +12,12 @@ import {
   traceContour,
   type Pt,
 } from "@/lib/boundary-suggest";
+import { ringSelfIntersects } from "@/lib/geo";
+
+/** Every suggestion the pipeline hands out must be simple geometry. */
+function expectSimple(poly: Pt[]) {
+  expect(ringSelfIntersects(poly.map((p) => [p.x, p.y]))).toBe(false);
+}
 
 /** Paint a W×H image: background colour, then coloured rectangles on top. */
 function image(
@@ -188,5 +194,31 @@ describe("suggestBoundary — the whole pipeline", () => {
     expect(poly).not.toBeNull();
     expect(poly.length).toBeLessThanOrEqual(14);
     expect(poly.length).toBeGreaterThanOrEqual(8); // a cross needs ~12 corners
+    expectSimple(poly);
+  });
+
+  it("never returns a self-crossing ring", () => {
+    // Every shape this suite feeds the pipeline must come back simple.
+    const w = 140, h = 140;
+    const cases: Array<[Uint8ClampedArray, Pt]> = [
+      [image(w, h, SAND, [{ x: 20, y: 30, w: 60, h: 50, c: GREEN }]), { x: 50, y: 55 }],
+      [
+        image(w, h, SAND, [
+          { x: 50, y: 20, w: 40, h: 100, c: GREEN },
+          { x: 20, y: 50, w: 100, h: 40, c: GREEN },
+        ]),
+        { x: 70, y: 70 },
+      ],
+      [
+        image(w, h, SAND, Array.from({ length: 8 }, (_, i) => ({
+          x: 20, y: 15 + i * 14, w: 40 + i * 12, h: 14, c: GREEN,
+        }))),
+        { x: 30, y: 60 },
+      ],
+    ];
+    for (const [px, seed] of cases) {
+      const poly = suggestBoundary(px, w, h, seed, { epsilon: 1.15, maxCorners: 64 });
+      if (poly) expectSimple(poly);
+    }
   });
 });

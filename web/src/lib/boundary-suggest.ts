@@ -11,6 +11,8 @@
  * of surveyed truth — and the UI says so next to the button that runs it.
  */
 
+import { ringSelfIntersects } from "@/lib/geo";
+
 export interface Pt {
   x: number;
   y: number;
@@ -221,18 +223,26 @@ export function suggestBoundary(
   const contour = traceContour(mask, w, h);
   if (contour.length < 8) return null;
 
-  let simple = simplifyPath(contour, epsilon);
+  const dedupe = (p: Pt[]) =>
+    p.length > 1 && p[0].x === p[p.length - 1].x && p[0].y === p[p.length - 1].y
+      ? p.slice(0, -1)
+      : p;
+  const crossed = (p: Pt[]) =>
+    p.length >= 4 && ringSelfIntersects(p.map((q) => [q.x, q.y]));
+
+  let simple = dedupe(simplifyPath(contour, epsilon));
   for (let guard = 0; simple.length > maxCorners && guard < 8; guard++) {
     epsilon *= 1.6;
-    simple = simplifyPath(contour, epsilon);
+    simple = dedupe(simplifyPath(contour, epsilon));
   }
-  // Drop the duplicated closing point RDP can leave.
-  if (
-    simple.length > 1 &&
-    simple[0].x === simple[simple.length - 1].x &&
-    simple[0].y === simple[simple.length - 1].y
-  ) {
-    simple = simple.slice(0, -1);
+  // A suggestion must be SIMPLE geometry: aggressive simplification of a
+  // noisy contour can fold edges over each other, and handing the owner a
+  // self-crossing ring would be worse than refusing. Smooth harder until
+  // it untangles; if it never does, decline honestly.
+  for (let guard = 0; crossed(simple) && guard < 6; guard++) {
+    epsilon *= 1.6;
+    simple = dedupe(simplifyPath(contour, epsilon));
   }
+  if (crossed(simple)) return null;
   return simple.length >= 3 ? simple : null;
 }

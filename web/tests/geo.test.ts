@@ -1,4 +1,20 @@
 import { describe, expect, it } from "vitest";
+import { ringSelfIntersects } from "@/lib/geo";
+
+describe("ringSelfIntersects", () => {
+  it("passes clean rings and catches bow-ties", () => {
+    const square = [[0, 0], [1, 0], [1, 1], [0, 1]] as [number, number][];
+    expect(ringSelfIntersects(square)).toBe(false);
+    const triangle = [[0, 0], [2, 0], [1, 2]] as [number, number][];
+    expect(ringSelfIntersects(triangle)).toBe(false);
+    // Bow-tie: edges (0->1) and (2->3) cross.
+    const bowtie = [[0, 0], [1, 1], [1, 0], [0, 1]] as [number, number][];
+    expect(ringSelfIntersects(bowtie)).toBe(true);
+    // Concave but clean (an L) stays valid.
+    const ell = [[0, 0], [2, 0], [2, 1], [1, 1], [1, 2], [0, 2]] as [number, number][];
+    expect(ringSelfIntersects(ell)).toBe(false);
+  });
+});
 import {
   bboxIntersects,
   bboxOf,

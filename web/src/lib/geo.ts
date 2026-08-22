@@ -222,6 +222,36 @@ export function formatINR(n: number, opts: { compact?: boolean } = {}): string {
   return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
 
+/**
+ * Does the closed ring cross itself (a bow-tie)? Shoelace area is
+ * meaningless on such a shape, so the drawing UI refuses to quote one.
+ * Planar segment intersection is exact enough at field scale; adjacent
+ * segments (sharing an endpoint) are skipped.
+ */
+export function ringSelfIntersects(pts: Position[]): boolean {
+  const n = pts.length;
+  if (n < 4) return false;
+  const seg = (i: number): [Position, Position] => [pts[i], pts[(i + 1) % n]];
+  const cross = (o: Position, a: Position, b: Position) =>
+    (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const intersects = (a: Position, b: Position, c: Position, d: Position) => {
+    const d1 = cross(a, b, c);
+    const d2 = cross(a, b, d);
+    const d3 = cross(c, d, a);
+    const d4 = cross(c, d, b);
+    return ((d1 > 0) !== (d2 > 0)) && ((d3 > 0) !== (d4 > 0));
+  };
+  for (let i = 0; i < n; i++) {
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue; // adjacent through the closure
+      const [a, b] = seg(i);
+      const [c, d] = seg(j);
+      if (intersects(a, b, c, d)) return true;
+    }
+  }
+  return false;
+}
+
 export function formatDistance(m: number): string {
   return m < 1000 ? `${Math.round(m)} m` : `${(m / 1000).toFixed(m < 10000 ? 1 : 0)} km`;
 }
