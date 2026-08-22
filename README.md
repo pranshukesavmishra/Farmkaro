@@ -63,6 +63,7 @@ See `web/.env.example` for every optional switch.
 | [`docs/09-metrics-and-kill-criteria.md`](docs/09-metrics-and-kill-criteria.md) | Metrics and pre-agreed kill criteria |
 | [`docs/10-risk-register.md`](docs/10-risk-register.md) | Ranked risks and mitigations |
 | [`docs/11-land-records-integration.md`](docs/11-land-records-integration.md) | MP Bhulekh / land-records integration strategy |
+| [`docs/pilot/`](docs/pilot/) | Pilot operations pack: MoU request letter (MP WebGIS), field-executive onboarding checklist, revenue-advocate brief |
 
 ## Non-negotiable product rules
 
