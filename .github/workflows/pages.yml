@@ -1,0 +1,80 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, "claude/farmkaro-saas-platform-0fkefc"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  # Needed by the enable-pages step below to create/point the Pages site at
+  # the gh-pages branch via the REST API.
+  pages: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      # Route handlers are dev-only (offline tile stand-in); a static export
+      # has no server, and the public build uses real satellite imagery.
+      - run: rm -rf src/app/api
+      - run: npx next build
+        env:
+          STATIC_EXPORT: "1"
+          NEXT_PUBLIC_STATIC: "1"
+          NEXT_PUBLIC_BASE_PATH: /Farmkaro
+      - run: touch out/.nojekyll
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: web/out
+
+      # Point the repository's Pages site at the gh-pages branch. Idempotent:
+      # 201 = created, 409 = already exists (then PUT aligns the source),
+      # 403/404 = the token cannot administer Pages — fail soft and say so,
+      # because the deploy itself still succeeded.
+      - name: Ensure Pages serves the gh-pages branch
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          body='{"build_type":"legacy","source":{"branch":"gh-pages","path":"/"}}'
+          code=$(curl -s -o /tmp/pages.json -w "%{http_code}" -X POST             -H "Authorization: Bearer $GH_TOKEN"             -H "Accept: application/vnd.github+json"             "https://api.github.com/repos/$REPO/pages" -d "$body")
+          echo "create-pages -> HTTP $code"; cat /tmp/pages.json
+          if [ "$code" = "409" ]; then
+            code=$(curl -s -o /tmp/pages.json -w "%{http_code}" -X PUT               -H "Authorization: Bearer $GH_TOKEN"               -H "Accept: application/vnd.github+json"               "https://api.github.com/repos/$REPO/pages"               -d '{"build_type":"legacy","source":{"branch":"gh-pages","path":"/"}}')
+            echo "update-pages -> HTTP $code"; cat /tmp/pages.json
+          fi
+          if [ "$code" = "403" ] || [ "$code" = "404" ]; then
+            echo "::warning::The workflow token cannot administer Pages on this repo."
+            echo "::warning::One manual step remains: Settings -> Pages -> source = gh-pages branch."
+          fi
+
+      # Prove the site answers from the runner (which has real internet).
+      - name: Probe the public URL
+        working-directory: .
+        run: |
+          url="https://$(echo "${{ github.repository_owner }}" | tr "[:upper:]" "[:lower:]").github.io/Farmkaro/"
+          echo "probing $url"
+          for i in $(seq 1 18); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+            echo "attempt $i -> HTTP $code"
+            if [ "$code" = "200" ]; then echo "PUBLIC URL LIVE: $url"; exit 0; fi
+            sleep 10
+          done
+          echo "::warning::Site not answering yet at $url (Pages may still be provisioning)."

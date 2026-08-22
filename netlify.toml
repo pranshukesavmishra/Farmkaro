@@ -1,0 +1,24 @@
+# Netlify deploy — static export served at the site root.
+#
+# Netlify serves at the domain root, so (unlike GitHub Pages' /Farmkaro
+# project path) NO basePath is set here. Connect this repo on netlify.com and
+# it builds with zero further config. The published site is the discovery +
+# parcel experience with real satellite imagery; the transactional backend is
+# not included in a static export (it needs a Node server + database) and its
+# surfaces show honest read-only notices.
+[build]
+  base = "web"
+  command = "rm -rf src/app/api && npx next build"
+  publish = "out"
+
+[build.environment]
+  STATIC_EXPORT = "1"
+  NEXT_PUBLIC_STATIC = "1"
+  NODE_VERSION = "22"
+
+# Static export emits per-route folders with index.html; this serves the app's
+# own 404 page for anything unmatched.
+[[redirects]]
+  from = "/*"
+  to = "/404.html"
+  status = 404

@@ -1,0 +1,715 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ===========================================================================
+   FarmKaro design system — "Field Survey"
+   ---------------------------------------------------------------------------
+   The visual language of cadastral survey and satellite reconnaissance:
+   a deep forest-black canvas so imagery glows, editorial display type,
+   hairline rules, corner registration ticks, and measured values set in
+   monospace like an instrument readout.
+
+   Rules:
+   - Imagery is always the most saturated thing on screen. Chrome stays quiet.
+   - Every measured value (area, rent, distance, coordinates) is monospace
+     with tabular figures, so columns of numbers line up and read as data.
+   - Gold is reserved for measured/live values and selection. Never decoration.
+   =========================================================================== */
+
+:root {
+  /* Type */
+  --font-display: "Fraunces", "Noto Sans Devanagari", Georgia, serif;
+  --font-sans: "Public Sans", "Noto Sans Devanagari", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Light — premium warm paper: pale wheat, never stark white. */
+  --canvas: #f4f0e2;
+  --canvas-2: #ebe5d1;
+  --surface: #fdfbf4;
+  --surface-2: #f7f3e6;
+  --fg: #0b120e;
+  /* Both greys clear WCAG AA (4.5:1) as body text on --canvas, the lightest
+     surface: muted 6.6:1, faint 4.7:1. Faint is the quietest ink we ship —
+     anything below it must be decoration, never words. */
+  --fg-muted: #4d5850;
+  /* Dark enough for AA (4.5:1) even on --canvas-2, the darkest paper — the
+     About page's banded sections put eyebrows directly on it. */
+  --fg-faint: #566058;
+  --line: #e2dcc8;
+  --line-strong: #cdc5ab;
+
+  --brand: #003622;
+  --brand-ink: #ffffff;
+  --brand-hover: #0b4a32;
+  --positive: #1b6b47;
+  /* Deep ochre, not bright gold: at 12px on --canvas-2 (the palest surface
+     gold ever sits on) this clears 4.8:1. Bright gold reads as gold only on
+     the dark canvas — on paper it has to be ink. */
+  --gold: #825e0f;
+  --gold-soft: rgba(201, 162, 75, 0.14);
+  --danger: #a5332a;
+
+  --shadow-sm: 0 1px 2px rgba(11, 18, 14, 0.05), 0 1px 3px rgba(11, 18, 14, 0.04);
+  --shadow-md: 0 4px 12px -4px rgba(11, 18, 14, 0.12), 0 12px 32px -18px rgba(11, 18, 14, 0.25);
+  --shadow-lg: 0 18px 50px -24px rgba(0, 54, 34, 0.45);
+
+  --radius: 14px;
+  --radius-lg: 20px;
+
+  /* Fluid type scale */
+  --t-xs: 0.75rem;
+  --t-sm: 0.8125rem;
+  --t-base: 0.9375rem;
+  --t-md: 1.0625rem;
+  --t-lg: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
+  --t-xl: clamp(1.6rem, 1.35rem + 1.1vw, 2.1rem);
+  --t-2xl: clamp(2.1rem, 1.6rem + 2.2vw, 3.2rem);
+  --t-3xl: clamp(2.8rem, 1.9rem + 4vw, 5rem);
+}
+
+.dark {
+  /* Dark — a deep charcoal floor with a whisper of green, and cards that
+     visibly lift off it in two steps. The old palette painted floor, cards
+     and borders in the same green and everything merged into one wall;
+     depth now comes from tone, and the green lives in the accents. */
+  --canvas: #070b09;
+  --canvas-2: #0c120e;
+  --surface: #121a15;
+  --surface-2: #1a231c;
+  --fg: #eef2ed;
+  --fg-muted: #9dab9f;
+  --fg-faint: #838f85;
+  --line: #242f27;
+  --line-strong: #37453b;
+
+  --brand: #55ab82;
+  --brand-ink: #04140d;
+  --brand-hover: #71c49b;
+  --positive: #5fd39b;
+  --gold: #ddb672;
+  --gold-soft: rgba(221, 182, 114, 0.16);
+  --danger: #e0776a;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 24px -10px rgba(0, 0, 0, 0.7);
+  --shadow-lg: 0 24px 60px -28px rgba(0, 0, 0, 0.85);
+}
+
+* {
+  border-color: var(--line);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: var(--t-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-synthesis-weight: none;
+}
+
+::selection {
+  background: var(--gold-soft);
+  color: var(--fg);
+}
+
+/* Display type: optical sizing and a touch of "wonk" give Fraunces its
+   organic, agricultural warmth without tipping into decoration. */
+.display {
+  font-family: var(--font-display);
+  font-optical-sizing: auto;
+  font-variation-settings: "SOFT" 0, "WONK" 1;
+  font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+/* Measured values read as instrument output. */
+.readout {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "zero" 1;
+  letter-spacing: -0.01em;
+}
+
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: var(--t-xs);
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+@layer components {
+  .surface {
+    background: var(--surface);
+    border-color: var(--line);
+  }
+  .surface-2 {
+    background: var(--surface-2);
+    border-color: var(--line);
+  }
+  .hairline {
+    border-color: var(--line);
+  }
+  .muted {
+    color: var(--fg-muted);
+  }
+  .faint {
+    color: var(--fg-faint);
+  }
+
+  /* Glass chips floating over imagery. The scrim has to hold up over the
+     brightest thing a satellite tile can show — dry fields, sand, a village
+     roof — so it is opaque enough that white text clears 4.5:1 even when the
+     photograph underneath is pure white. */
+  .glass {
+    background: rgba(6, 13, 9, 0.76);
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.35);
+  }
+
+  .focus-ring {
+    @apply outline-none;
+  }
+  .focus-ring:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Buttons ---------------------------------------------------------------- */
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 whitespace-nowrap font-semibold;
+    font-size: var(--t-sm);
+    border-radius: 999px;
+    padding: 0.625rem 1.15rem;
+    transition:
+      transform 0.12s cubic-bezier(0.22, 0.61, 0.36, 1),
+      background-color 0.16s ease,
+      border-color 0.16s ease,
+      box-shadow 0.16s ease,
+      color 0.16s ease;
+  }
+  .btn:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .btn:active {
+    transform: translateY(1px) scale(0.995);
+  }
+  .btn:disabled {
+    opacity: 0.45;
+    pointer-events: none;
+  }
+
+  .btn-primary {
+    background: var(--brand);
+    color: var(--brand-ink);
+    box-shadow: var(--shadow-sm);
+  }
+  .btn-primary:hover {
+    background: var(--brand-hover);
+    box-shadow: var(--shadow-md);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--fg);
+    border: 1px solid var(--line-strong);
+  }
+  .btn-ghost:hover {
+    background: var(--surface-2);
+    border-color: var(--fg-faint);
+  }
+
+  .btn-quiet {
+    background: transparent;
+    color: var(--fg-muted);
+  }
+  .btn-quiet:hover {
+    color: var(--fg);
+    background: var(--surface-2);
+  }
+
+  /* Inputs ----------------------------------------------------------------- */
+  .field {
+    background: var(--surface);
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    padding: 0.625rem 0.8rem;
+    font-size: var(--t-base);
+    color: var(--fg);
+    transition: border-color 0.16s ease, box-shadow 0.16s ease;
+    width: 100%;
+  }
+  .field::placeholder {
+    color: var(--fg-faint);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--brand);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent);
+  }
+
+  /* Card with survey registration ticks at the corners. A quiet nod to
+     cadastral drawings; it also gives cards a precise, measured edge. */
+  .card {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    transition:
+      transform 0.2s cubic-bezier(0.22, 0.61, 0.36, 1),
+      border-color 0.2s ease,
+      box-shadow 0.2s ease;
+  }
+  .card-lift:hover {
+    transform: translateY(-3px);
+    border-color: var(--line-strong);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* A card that lifts on hover promises the whole card is the target. Rather
+     than wrapping the card in one giant anchor — or, worse, repeating the same
+     link on the image, the title and a CTA — the title's link stretches to
+     cover the card. One link, one accessible name, the whole surface clickable.
+     The card itself must be positioned for this to work. */
+  .stretch-link::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+  }
+
+  .ticks::before,
+  .ticks::after {
+    content: "";
+    position: absolute;
+    width: 9px;
+    height: 9px;
+    border-color: var(--line-strong);
+    opacity: 0.9;
+    pointer-events: none;
+  }
+  .ticks::before {
+    top: 7px;
+    left: 7px;
+    border-top: 1px solid;
+    border-left: 1px solid;
+  }
+  .ticks::after {
+    bottom: 7px;
+    right: 7px;
+    border-bottom: 1px solid;
+    border-right: 1px solid;
+  }
+
+  /* Faint cartographic grid for large empty areas. */
+  .grid-paper {
+    background-image:
+      linear-gradient(to right, color-mix(in srgb, var(--line) 60%, transparent) 1px, transparent 1px),
+      linear-gradient(to bottom, color-mix(in srgb, var(--line) 60%, transparent) 1px, transparent 1px);
+    background-size: 56px 56px;
+  }
+
+  .rule {
+    height: 1px;
+    background: linear-gradient(to right, var(--line), transparent);
+    border: 0;
+  }
+}
+
+/* Motion --------------------------------------------------------------------
+   Reveals are subtle and fast. They orient the eye; they never make the user
+   wait. Anything decorative is dropped under reduced-motion. */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes draw-boundary {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.7;
+  }
+  70% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.rise {
+  animation: rise 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+/* The hero's entrance: a longer, felt arrival — lift, settle and focus.
+   Used with staggered delays so the page composes itself line by line. */
+.rise-hero {
+  animation: rise-hero 0.95s cubic-bezier(0.19, 0.65, 0.26, 1) both;
+}
+@keyframes rise-hero {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+    filter: blur(7px);
+  }
+  60% {
+    filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+.fade-in {
+  animation: fade 0.5s ease both;
+}
+
+.boundary-draw {
+  stroke-dasharray: var(--len, 2000);
+  stroke-dashoffset: var(--len, 2000);
+  animation: draw-boundary 900ms cubic-bezier(0.22, 0.61, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise,
+  .fade-in,
+  .rise-hero,
+  .boundary-draw {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    filter: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Map chrome ---------------------------------------------------------------- */
+.maplibregl-ctrl-attrib {
+  font-size: 10px;
+  font-family: var(--font-mono);
+}
+.maplibregl-popup-content {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.maplibregl-ctrl-group {
+  background: rgba(6, 13, 9, 0.7) !important;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+.maplibregl-ctrl-group button {
+  background: transparent !important;
+}
+.maplibregl-ctrl-group button + button {
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+.maplibregl-ctrl-group button span {
+  filter: invert(1) opacity(0.85);
+}
+
+/* Scrollbars in panels */
+.thin-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.thin-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border-radius: 999px;
+  border: 3px solid var(--canvas);
+}
+.thin-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Print: the record summary, and nothing else ────────────────────────────
+   A printed record is a reference sheet, not a certificate: the banner that
+   says so is part of the print output itself. Visibility (not display) keeps
+   the card's layout box intact while everything around it disappears. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    border: none;
+    box-shadow: none;
+  }
+  .print-area .print-banner {
+    display: block;
+    padding: 10px 14px;
+    border: 1.5px solid #000;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .print-area .print\:hidden,
+  .print-area button {
+    display: none !important;
+  }
+}
+
+/* ── Mobile: room for the floating tab bar ──────────────────────────────────
+   Under md the app-style tab bar floats over the bottom edge; every page
+   gets breathing room beneath its content so nothing hides behind it. */
+@media (max-width: 767px) {
+  body {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
+
+/* ── Boundary drawing: vertex handles ───────────────────────────────────────
+   Each corner pops in with a ripple, so hand-placed and AI-placed dots alike
+   land with the same deliberate, surveyor's rhythm. */
+.fk-vertex {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2.5px solid #1b6b47;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  padding: 0;
+  /* backwards, not both: the dot must stay hidden through its stagger delay,
+     but release the keyframe transform afterwards so hover can scale it. */
+  animation: fk-vertex-pop 0.32s cubic-bezier(0.34, 1.4, 0.5, 1) backwards;
+}
+.fk-vertex {
+  transition: transform 0.15s ease;
+}
+.fk-vertex:hover {
+  transform: scale(1.3);
+}
+.fk-vertex:active {
+  cursor: grabbing;
+  transform: scale(1.15);
+}
+.fk-vertex::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(227, 190, 118, 0.85);
+  animation: fk-vertex-ripple 0.55s ease-out both;
+  /* When FarmSelect AI staggers the dots in, each ripple waits for its dot. */
+  animation-delay: inherit;
+  pointer-events: none;
+}
+
+/* ── 3D cards (About) ───────────────────────────────────────────────────────
+   The card leans toward the cursor; children keep their own depth. */
+.fk-tilt {
+  position: relative;
+  transform: perspective(900px);
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease;
+  will-change: transform;
+}
+.fk-tilt > * {
+  transform: translateZ(0.01px); /* promote for crisp text while tilted */
+}
+
+/* Floating depth orbs behind the About hero. */
+.fk-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+  animation: fk-orb-float 16s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes fk-orb-float {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, -7%, 0) scale(1.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fk-tilt {
+    transition: none;
+  }
+  .fk-orb {
+    animation: none;
+  }
+}
+
+/* While drawing, the first dot glows gold — tapping it closes the shape. */
+.fk-vertex--first {
+  border-color: #c9a24b;
+  box-shadow:
+    0 0 0 3px rgba(242, 216, 154, 0.45),
+    0 0 10px 2px rgba(242, 216, 154, 0.55);
+}
+
+/* A fine AI-traced outline has many dots; smaller handles keep it legible.
+   Every one still drags, and hover grows it back to full grabbing size. */
+.fk-vertex--fine {
+  width: 9px;
+  height: 9px;
+  border-width: 2px;
+}
+.fk-vertex--fine::after {
+  inset: -5px;
+}
+.fk-vertex--fine:hover {
+  transform: scale(1.6);
+}
+
+/* The pen tip that leads FarmSelect AI's perimeter trace. */
+.fk-trace-tip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f2d89a;
+  box-shadow:
+    0 0 10px 3px rgba(242, 216, 154, 0.75),
+    0 1px 2px rgba(0, 0, 0, 0.45);
+  animation: fk-tip-pulse 0.5s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes fk-tip-pulse {
+  from {
+    transform: scale(0.85);
+  }
+  to {
+    transform: scale(1.2);
+  }
+}
+@keyframes fk-vertex-pop {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes fk-vertex-ripple {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fk-vertex,
+  .fk-vertex::after {
+    animation: none;
+  }
+}
+
+/* ── Confirmed boundary: one light, orbiting ────────────────────────────────
+   The boundary is a clean solid line; its only motion is a soft blurred
+   streak lapping the perimeter (the SVG twin of the map comet). pathLength
+   on the SVG path normalises the lap to 100 dash units. Reduced-motion
+   stills the offset and hides the streak entirely. */
+.fk-comet {
+  animation: fk-comet-orbit 4.4s linear infinite;
+  filter: blur(1px) drop-shadow(0 0 5px rgba(242, 216, 154, 0.9));
+  opacity: 0.95;
+}
+@keyframes fk-comet-orbit {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fk-comet {
+    animation: none;
+    opacity: 0;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ── Google page translation: engine on, chrome off ─────────────────────────
+   The language toggle drives translation through the googtrans cookie; every
+   visible piece of the widget (banner iframe, tooltip, gadget, highlight)
+   stays hidden so the site keeps its own design in both languages. */
+#fk-gt-host,
+.goog-te-gadget,
+.goog-te-banner-frame,
+#goog-gt-tt,
+.goog-te-balloon-frame,
+body > .skiptranslate {
+  display: none !important;
+}
+body {
+  top: 0 !important; /* the banner (even hidden) tries to push the page down */
+}
+font[style*="background-color"] {
+  background-color: transparent !important;
+  box-shadow: none !important; /* Google's hover highlight on translated text */
+}

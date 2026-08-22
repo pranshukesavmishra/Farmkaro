@@ -1,0 +1,15 @@
+import { chromium } from "playwright";
+const url = process.argv[2] || "http://localhost:3000/";
+const out = process.argv[3] || "/tmp/shot.png";
+const full = process.argv[4] === "full";
+const b = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium" });
+const p = await b.newPage({ viewport: { width: 1440, height: 950 }, deviceScaleFactor: 1 });
+const errs = [];
+p.on("pageerror", (e) => errs.push("PAGEERROR " + (e.stack || e.message).slice(0, 500)));
+p.on("console", (m) => { if (m.type() === "error") errs.push("CONSOLE " + m.text().slice(0, 300)); });
+p.on("requestfailed", (r) => errs.push("REQFAIL " + r.url().slice(0, 120) + " :: " + (r.failure()?.errorText || "")));
+await p.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 }).catch(e => errs.push("NAV " + e.message));
+await p.waitForTimeout(6000);
+await p.screenshot({ path: out, fullPage: full });
+console.log(errs.length ? [...new Set(errs)].slice(0, 15).join("\n") : "clean");
+await b.close();

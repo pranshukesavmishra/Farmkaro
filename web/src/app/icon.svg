@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- The FarmKaro wheat mark: a pointed top grain over four pairs of
+       quarter-disc leaves; the stem is the negative space between them. -->
+  <g fill="#178A4E">
+    <path d="M50 1c7.4 7 10.2 16.8 0 27.5C39.8 17.8 42.6 8 50 1Z"/>
+    <path d="M55 20h20a20 20 0 0 1-20 20Z"/>
+    <path d="M45 20H25a20 20 0 0 0 20 20Z"/>
+    <path d="M55 40h20a20 20 0 0 1-20 20Z"/>
+    <path d="M45 40H25a20 20 0 0 0 20 20Z"/>
+    <path d="M55 60h20a20 20 0 0 1-20 20Z"/>
+    <path d="M45 60H25a20 20 0 0 0 20 20Z"/>
+    <path d="M55 80h20a20 20 0 0 1-20 20Z"/>
+    <path d="M45 80H25a20 20 0 0 0 20 20Z"/>
+  </g>
+</svg>
