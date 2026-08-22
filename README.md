@@ -2,10 +2,28 @@
 
 **Making it safe to lease out farmland — and making leased-in land bankable.**
 
-FarmKaro is a farmland leasing platform for India, built parcel-first on PostgreSQL + PostGIS.
-This repository currently holds the **v2 relaunch plan**: a post-mortem of the first attempt,
-sourced market and legal research, the product and technical architecture, and a
-week-by-week execution plan.
+FarmKaro is a farmland leasing platform for India, built parcel-first. This repository holds
+two things:
+
+- **`docs/`** — the v2 relaunch plan: a post-mortem of the first attempt, sourced market and
+  legal research, the product and technical architecture, and a week-by-week execution plan.
+- **`web/`** — the working pilot platform for Jabalpur district, Madhya Pradesh.
+
+## What the pilot platform does
+
+- **Discover** — farmland on real satellite imagery with price pins that de-clutter
+  instead of overlapping, filters that genuinely constrain the data, and honest
+  verification states on every parcel.
+- **Find my land (`/records`)** — a consent-gated land-record lookup by khasra + village
+  or Land ID (Devanagari digits included), a khasra-copy scanner that reads the PDF and
+  fills the form, and the full खतौनी record — owners and shares, area in
+  hectare/acre/bigha, crops, चौहद्दी, encumbrance, mutation — pinned at the village's real
+  position. Plus a 15,000-record **synthetic demonstration archive** (openly fictional,
+  hence freely searchable) and a mandi price board.
+- **The transaction rail** — enquiries with two-way messaging, offers with
+  accept/counter/reject, a lease lifecycle with lessor-side authority on the binding
+  steps, a forward-only registration ladder, notifications, and an append-only audit
+  log. All behind phone + OTP auth with hashed session tokens and rate limiting.
 
 ## Run the web app
 
@@ -44,6 +62,7 @@ See `web/.env.example` for every optional switch.
 | [`docs/08-gtm-first-180-days.md`](docs/08-gtm-first-180-days.md) | Week-by-week plan |
 | [`docs/09-metrics-and-kill-criteria.md`](docs/09-metrics-and-kill-criteria.md) | Metrics and pre-agreed kill criteria |
 | [`docs/10-risk-register.md`](docs/10-risk-register.md) | Ranked risks and mitigations |
+| [`docs/11-land-records-integration.md`](docs/11-land-records-integration.md) | MP Bhulekh / land-records integration strategy |
 
 ## Non-negotiable product rules
 
@@ -57,6 +76,21 @@ See `web/.env.example` for every optional switch.
 8. **No pooled investment or fractional-ownership product.** Unregistered-CIS risk.
 9. Government and state integrations stay behind **connectors**, with `manual` as the default provider.
 10. Ship in **Hindi first**.
+
+## Verification
+
+`cd web && npm test` runs 93 unit tests. The browser-driven suite goes further:
+
+```bash
+cd web
+bash scripts/reset-dev.sh   # fresh database + dev server
+npm run verify:all          # 13 checks: flows, leases, messaging, records,
+                            # concurrency races, WCAG contrast, mobile, and more
+```
+
+`web/scripts/README.md` documents what each check asserts — including the ones that
+prove the map pin sits at the real village (recovered from the rendered tile grid) and
+that parallel double-accepts resolve to exactly one winner.
 
 > ⚠️ The legal analysis in `docs/02` is research, not legal advice. Every point marked
 > **[VERIFY LOCALLY]** must be confirmed with a practising revenue advocate in the
