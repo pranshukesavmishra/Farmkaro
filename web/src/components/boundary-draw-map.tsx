@@ -5,7 +5,8 @@ import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { m2ToAcres, polygonAreaM2, SATELLITE_TILE_URL, type Position, type Ring } from "@/lib/geo";
 import { suggestBoundary } from "@/lib/boundary-suggest";
-import { Loader2, Redo2, Sparkles, Trash2, Undo2 } from "lucide-react";
+import { sweepRange, sweepSegments } from "@/lib/sweep";
+import { Loader2, MousePointerClick, Redo2, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -28,6 +29,118 @@ interface Props {
 }
 
 const SRC = "draw";
+const SWEEP_SRC = "sweep";
+const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+
+/** FarmSelect AI reads at this detail: the outline hugs every bend of the
+ *  field, capped so every dot stays a draggable handle. */
+const FINE_DETAIL = { epsilon: 1.15, maxCorners: 64 } as const;
+
+/** Below this zoom one screen pixel is bigger than a bund — the imagery can't
+ *  resolve a single field, so FarmSelect AI asks for a closer view instead of
+ *  guessing. */
+const MIN_AI_ZOOM = 12.5;
+
+/** Phase-shifted renderings of the [5,4] dash — stepped on a timer they read
+ *  as the dash circulating uniformly around the boundary (MapLibre cannot
+ *  animate a dash offset directly). */
+const DASH_PHASES: number[][] = [
+  [5, 4],
+  [4, 4, 1, 0],
+  [3, 4, 2, 0],
+  [2, 4, 3, 0],
+  [1, 4, 4, 0],
+  [0.05, 4, 4.95, 0],
+  [0.05, 3, 5, 1],
+  [0.05, 2, 5, 2],
+  [0.05, 1, 5, 3],
+];
+
+/**
+ * The reveal: a solid gold line sweeps the perimeter at uniform speed behind a
+ * glowing pen tip, then settles into the standard white dash. On-screen pixel
+ * distances drive the interpolation so the sweep neither rushes short segments
+ * nor crawls long ones. Pure decoration — reduced-motion users get the
+ * boundary instantly and never enter here.
+ */
+async function tracePerimeter(m: MlMap, ring: Position[]): Promise<void> {
+  const src = m.getSource(SRC) as maplibregl.GeoJSONSource | undefined;
+  if (!src || ring.length < 3) return;
+  const closed = [...ring, ring[0]];
+  const px = closed.map((p) => m.project(p as [number, number]));
+  const seg: number[] = [];
+  let total = 0;
+  for (let i = 1; i < px.length; i++) {
+    const d = Math.hypot(px[i].x - px[i - 1].x, px[i].y - px[i - 1].y);
+    seg.push(d);
+    total += d;
+  }
+  if (total < 4) return;
+  const duration = Math.max(850, Math.min(1700, total * 1.1));
+
+  const tip = document.createElement("div");
+  tip.className = "fk-trace-tip";
+  const tipMarker = new maplibregl.Marker({ element: tip })
+    .setLngLat(closed[0] as [number, number])
+    .addTo(m);
+
+  try {
+    m.setPaintProperty("draw-line", "line-color", "#F2D89A");
+    m.setPaintProperty("draw-line", "line-width", 2.4);
+    m.setPaintProperty("draw-line", "line-dasharray", [1, 0]);
+
+    await new Promise<void>((resolve) => {
+      const t0 = performance.now();
+      const frame = (now: number) => {
+        try {
+          if (!m.style || !m.getLayer("draw-line")) return resolve(); // map torn down mid-trace
+          const t = Math.min(1, (now - t0) / duration);
+          const dist = t * total;
+          const coords: Position[] = [closed[0]];
+          let acc = 0;
+          for (let i = 0; i < seg.length; i++) {
+            if (acc + seg[i] <= dist) {
+              acc += seg[i];
+              coords.push(closed[i + 1]);
+              continue;
+            }
+            const f = seg[i] ? (dist - acc) / seg[i] : 0;
+            coords.push([
+              closed[i][0] + (closed[i + 1][0] - closed[i][0]) * f,
+              closed[i][1] + (closed[i + 1][1] - closed[i][1]) * f,
+            ]);
+            break;
+          }
+          if (coords.length >= 2) {
+            src.setData({
+              type: "FeatureCollection",
+              features: [
+                {
+                  type: "Feature",
+                  properties: {},
+                  geometry: { type: "LineString", coordinates: coords },
+                },
+              ],
+            });
+            tipMarker.setLngLat(coords[coords.length - 1] as [number, number]);
+          }
+          if (t < 1) requestAnimationFrame(frame);
+          else resolve();
+        } catch {
+          resolve();
+        }
+      };
+      requestAnimationFrame(frame);
+    });
+  } finally {
+    tipMarker.remove();
+    if (m.style && m.getLayer("draw-line")) {
+      m.setPaintProperty("draw-line", "line-color", "rgba(255,255,255,.95)");
+      m.setPaintProperty("draw-line", "line-width", 1.8);
+      m.setPaintProperty("draw-line", "line-dasharray", [5, 4]);
+    }
+  }
+}
 
 export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className }: Props) {
   const holder = useRef<HTMLDivElement>(null);
@@ -46,6 +159,9 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   aiRef.current = ai;
   const pointsRef = useRef<Position[]>(points);
   pointsRef.current = points;
+  // Set just before FarmSelect AI commits its ring: the next marker render
+  // staggers the dot pops around the boundary instead of all at once.
+  const staggerRef = useRef(false);
 
   const areaAcres = points.length >= 3 ? m2ToAcres(polygonAreaM2([[...points, points[0]]])) : 0;
 
@@ -67,14 +183,22 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   runSuggestRef.current = async (cx: number, cy: number) => {
     const m = map.current;
     if (!m) return;
+    if (m.getZoom() < MIN_AI_ZOOM) {
+      setAi("idle");
+      setAiNote(
+        "Zoom in until your field fills the view — FarmSelect AI reads the imagery on screen, and from this height one field is only a few pixels.",
+      );
+      return;
+    }
     setAi("busy");
     setAiNote(null);
     try {
       const mapCanvas = m.getCanvas();
       const cssW = mapCanvas.clientWidth;
       const cssH = mapCanvas.clientHeight;
-      // Downsample for speed; the corner budget makes precision moot anyway.
-      const target = 360;
+      // Downsample for speed — but keep enough resolution that the outline
+      // can follow every small bend of the bund, not just the broad shape.
+      const target = 520;
       const scale = Math.min(1, target / Math.max(cssW, cssH));
       const w = Math.max(1, Math.round(cssW * scale));
       const h = Math.max(1, Math.round(cssH * scale));
@@ -86,7 +210,7 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       const rgba = ctx.getImageData(0, 0, w, h).data;
 
       const seed = { x: Math.round(cx * scale), y: Math.round(cy * scale) };
-      const poly = suggestBoundary(rgba, w, h, seed);
+      const poly = suggestBoundary(rgba, w, h, seed, FINE_DETAIL);
       if (!poly) {
         setAi("idle");
         setAiNote(
@@ -101,21 +225,21 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         return [ll.lng, ll.lat];
       });
 
-      // Animate the corners dropping in, dot by dot, like a careful hand.
+      // The reveal: a gold pen sweeps the perimeter at uniform speed, then
+      // the dots pop in one after another around the ring.
       const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
       setRedoStack(pointsRef.current.length ? [pointsRef.current] : []);
       if (reduced) {
         setPoints(ring);
       } else {
         setPoints([]);
-        for (let i = 0; i < ring.length; i++) {
-          await new Promise((r) => setTimeout(r, i === 0 ? 120 : 90));
-          setPoints(ring.slice(0, i + 1));
-        }
+        await tracePerimeter(m, ring);
+        staggerRef.current = true;
+        setPoints(ring);
       }
       setAi("idle");
       setAiNote(
-        "AI suggestion read from the imagery — drag any corner to correct it. It stays owner-drawn until FarmKaro walks the boundary.",
+        "FarmSelect AI traced your field from the imagery — drag any dot to fine-tune it. It stays owner-drawn until FarmKaro walks the boundary.",
       );
     } catch {
       setAi("idle");
@@ -128,6 +252,12 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     if (ai === "busy") return;
     setAiNote(null);
     const m = map.current;
+    if (m && m.getZoom() < MIN_AI_ZOOM) {
+      setAiNote(
+        "Zoom in until your field fills the view — FarmSelect AI reads the imagery on screen, and from this height one field is only a few pixels.",
+      );
+      return;
+    }
     const pts = pointsRef.current;
     if (m && pts.length >= 1) {
       // The person has begun marking — seed from the middle of their dots.
@@ -137,7 +267,7 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       void runSuggestRef.current(px.x, px.y);
     } else {
       setAi("await-tap");
-      setAiNote("Tap once inside your field and the AI will mark it for you.");
+      setAiNote("Tap once inside your field and FarmSelect AI will mark it for you, point by point.");
     }
   }
 
@@ -183,6 +313,23 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         filter: ["==", "$type", "Polygon"],
         paint: { "fill-color": "#5FA37F", "fill-opacity": 0.18 },
       });
+      // The scan beam that glides across a closed boundary. Sits over the
+      // fill but beneath the boundary line itself.
+      m.addSource(SWEEP_SRC, { type: "geojson", data: EMPTY_FC });
+      m.addLayer({
+        id: "sweep-line",
+        type: "line",
+        source: SWEEP_SRC,
+        paint: { "line-color": "#F7EFD8", "line-width": 1.6, "line-opacity": 0.55, "line-blur": 1.4 },
+      });
+      // Soft gold halo beneath the line — it also lights the AI trace.
+      m.addLayer({
+        id: "draw-glow",
+        type: "line",
+        source: SRC,
+        filter: ["==", "$type", "LineString"],
+        paint: { "line-color": "#F2D89A", "line-width": 8, "line-opacity": 0.16, "line-blur": 5 },
+      });
       m.addLayer({
         id: "draw-line-shadow",
         type: "line",
@@ -226,6 +373,75 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     map.current?.easeTo({ center, zoom, duration: 700 });
   }, [center, zoom]);
 
+  // Once the boundary closes, its dash circulates uniformly — the marked land
+  // reads as selected, Apple-crop style. Paused while the AI trace owns the
+  // line, stilled entirely under reduced motion.
+  const closed = points.length >= 3;
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready || !closed) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // The map may already be torn down when this cleanup runs — React runs
+    // unmount cleanups in definition order, so the bootstrap effect's
+    // m.remove() happens first. Never touch a dead map.
+    const live = () => !!m.style && !!m.getLayer("draw-line");
+    let i = 0;
+    const t = setInterval(() => {
+      if (!live() || aiRef.current === "busy") return;
+      i = (i + 1) % DASH_PHASES.length;
+      m.setPaintProperty("draw-line", "line-dasharray", DASH_PHASES[i]);
+    }, 90);
+    return () => {
+      clearInterval(t);
+      if (live()) m.setPaintProperty("draw-line", "line-dasharray", [5, 4]);
+    };
+  }, [ready, closed]);
+
+  // The scan: one soft beam of light gliding diagonally across the selected
+  // area, clipped to the boundary — recomputed per frame so it stays true
+  // through pans and zooms. Decorative only; reduced-motion never starts it.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready || !closed) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const live = () => !!m.style && !!m.getSource(SWEEP_SRC);
+    const n = { x: Math.SQRT1_2, y: Math.SQRT1_2 }; // 45° travel
+    const PERIOD = 3200;
+    let raf = 0;
+    const t0 = performance.now();
+    const frame = (now: number) => {
+      raf = requestAnimationFrame(frame);
+      if (!live() || aiRef.current === "busy") return;
+      const pts = pointsRef.current;
+      if (pts.length < 3) return;
+      const ringPx = pts.map((p) => m.project(p as [number, number]));
+      const { min, max } = sweepRange(ringPx, n);
+      const phase = ((now - t0) % PERIOD) / PERIOD;
+      const c = min + (max - min) * phase;
+      const segs = sweepSegments(ringPx, n, c);
+      (m.getSource(SWEEP_SRC) as maplibregl.GeoJSONSource).setData({
+        type: "Feature",
+        properties: {},
+        geometry: {
+          type: "MultiLineString",
+          coordinates: segs.map(([a, b]) => {
+            const la = m.unproject([a.x, a.y]);
+            const lb = m.unproject([b.x, b.y]);
+            return [
+              [la.lng, la.lat],
+              [lb.lng, lb.lat],
+            ];
+          }),
+        },
+      });
+    };
+    raf = requestAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(raf);
+      if (live()) (m.getSource(SWEEP_SRC) as maplibregl.GeoJSONSource).setData(EMPTY_FC);
+    };
+  }, [ready, closed]);
+
   // --- render points ---------------------------------------------------------
   useEffect(() => {
     const m = map.current;
@@ -251,12 +467,17 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     }
     src.setData({ type: "FeatureCollection", features });
 
-    // Vertex handles as draggable markers.
+    // Vertex handles as draggable markers. A fine AI outline has many points,
+    // so its dots shrink to stay legible — every one still drags.
+    const stagger = staggerRef.current;
+    staggerRef.current = false;
+    const fine = points.length > 18;
     markers.current.forEach((mk) => mk.remove());
     markers.current = points.map((pt, i) => {
       const el = document.createElement("button");
       el.type = "button";
-      el.className = "fk-vertex";
+      el.className = fine ? "fk-vertex fk-vertex--fine" : "fk-vertex";
+      if (stagger) el.style.animationDelay = `${Math.min(i * 22, 950)}ms`;
       el.setAttribute("aria-label", `Vertex ${i + 1} — drag to adjust`);
       const mk = new maplibregl.Marker({ element: el, draggable: true }).setLngLat(pt).addTo(m);
       mk.on("dragend", () => {
@@ -320,8 +541,8 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             type="button"
             onClick={startSuggest}
             disabled={ai === "busy"}
-            aria-label="AI: mark my land from the imagery"
-            title="AI: mark my land — reads the field you are marking and places the corners for you"
+            aria-label="FarmSelect AI: mark my land from the imagery"
+            title="FarmSelect AI — reads the field you are marking and traces the boundary for you, point by point"
             className={cn(
               "glass focus-ring flex h-9 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold text-white transition-transform",
               ai === "await-tap" && "ring-2 ring-[#E3BE76]",
@@ -331,16 +552,17 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             {ai === "busy" ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
-              <Sparkles className="h-4 w-4 text-[#E3BE76]" aria-hidden />
+              <MousePointerClick className="h-4 w-4 text-[#E3BE76]" aria-hidden />
             )}
-            AI mark
+            FarmSelect AI
           </button>
           <button
             type="button"
             onClick={undo}
             disabled={!points.length}
             aria-label="Undo last point"
-            className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white disabled:opacity-40"
+            title="Undo last point"
+            className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white transition-transform hover:enabled:-translate-y-px disabled:opacity-40"
           >
             <Undo2 className="h-4 w-4" />
           </button>
@@ -349,7 +571,8 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             onClick={redo}
             disabled={!redoStack.length}
             aria-label="Redo"
-            className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white disabled:opacity-40"
+            title="Redo"
+            className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white transition-transform hover:enabled:-translate-y-px disabled:opacity-40"
           >
             <Redo2 className="h-4 w-4" />
           </button>
@@ -358,7 +581,8 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             onClick={clear}
             disabled={!points.length}
             aria-label="Clear boundary"
-            className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white disabled:opacity-40"
+            title="Clear boundary"
+            className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white transition-transform hover:enabled:-translate-y-px disabled:opacity-40"
           >
             <Trash2 className="h-4 w-4" />
           </button>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useId, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { buildTileFrame, bboxOf, tileUrl, type PolygonCoords, type Position } from "@/lib/geo";
 import { cn } from "@/lib/cn";
 
@@ -93,6 +93,24 @@ export function ParcelOverlayCard({
     );
   }, [frame, geometry, boundaryConfirmed]);
 
+  // Pixel bounds of the boundary — the scan beam travels across this box.
+  const bbox = useMemo(() => {
+    if (!frame || !boundaryConfirmed) return null;
+    const ring = geometry[0] ?? [];
+    if (ring.length < 3) return null;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const pt of ring) {
+      const { x, y } = frame.project(pt);
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+    return { minX, minY, w: maxX - minX, h: maxY - minY };
+  }, [frame, geometry, boundaryConfirmed]);
+
+  const uid = useId();
+
   return (
     <div
       ref={ref}
@@ -150,6 +168,34 @@ export function ParcelOverlayCard({
             strokeLinejoin="round"
             strokeDasharray="6 5"
           />
+          {/* The scan: one soft beam gliding across the confirmed area,
+              clipped to the boundary. Its resting position is off-shape, so
+              reduced-motion (which stills the animation) shows nothing. */}
+          {bbox && bbox.w > 8 && (
+            <>
+              <defs>
+                <clipPath id={`${uid}-clip`}>
+                  <path d={boundaryPath} />
+                </clipPath>
+                <linearGradient id={`${uid}-beam`} x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0" stopColor="rgba(247,239,216,0)" />
+                  <stop offset="0.5" stopColor="rgba(247,239,216,0.45)" />
+                  <stop offset="1" stopColor="rgba(247,239,216,0)" />
+                </linearGradient>
+              </defs>
+              <g clipPath={`url(#${uid}-clip)`}>
+                <rect
+                  className="fk-card-sweep"
+                  x={bbox.minX - bbox.w * 0.55}
+                  y={bbox.minY - bbox.h * 0.4}
+                  width={bbox.w * 0.3}
+                  height={bbox.h * 1.8}
+                  fill={`url(#${uid}-beam)`}
+                  style={{ ["--fk-sw" as string]: `${bbox.w.toFixed(1)}px` }}
+                />
+              </g>
+            </>
+          )}
           {/* Corner dots: the surveyed vertices themselves. */}
           {(geometry[0] ?? []).slice(0, -1).map((pt, i) => {
             const { x, y } = frame!.project(pt);

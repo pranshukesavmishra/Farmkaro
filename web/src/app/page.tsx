@@ -87,27 +87,27 @@ export default async function Home() {
         />
 
         <div className="mx-auto max-w-shell px-4 pb-16 pt-20 sm:px-6 sm:pb-24 sm:pt-28">
-          <p className="eyebrow rise">Madhya Pradesh · Jabalpur district</p>
+          <p className="eyebrow rise-hero">Madhya Pradesh · Jabalpur district</p>
 
-          <h1
-            className="display mt-5 max-w-[15ch] text-3xl rise"
-            style={{ animationDelay: "60ms" }}
-          >
-            Find the right farmland.
-            <br />
-            <span className="text-brand">Lease it with confidence.</span>
+          <h1 className="display mt-5 max-w-[15ch] text-3xl">
+            <span className="block rise-hero" style={{ animationDelay: "120ms" }}>
+              Find the right farmland.
+            </span>
+            <span className="block text-brand rise-hero" style={{ animationDelay: "280ms" }}>
+              Lease it with confidence.
+            </span>
           </h1>
 
           <p
-            className="mt-6 max-w-[46ch] text-md leading-relaxed text-ink-muted rise"
-            style={{ animationDelay: "120ms" }}
+            className="mt-6 max-w-[46ch] text-md leading-relaxed text-ink-muted rise-hero"
+            style={{ animationDelay: "440ms" }}
           >
             Registered, non-tenancy-creating leases on farmland you can actually inspect — real
             locations, honest document status, and an end date both sides can rely on.
           </p>
           <p
-            className="mt-2 max-w-[46ch] text-sm text-ink-faint rise"
-            style={{ animationDelay: "150ms" }}
+            className="mt-2 max-w-[46ch] text-sm text-ink-faint rise-hero"
+            style={{ animationDelay: "540ms" }}
           >
             कागज़ पूरे, तारीख़ तय, ज़मीन आपकी।
           </p>
@@ -115,8 +115,8 @@ export default async function Home() {
           {/* Search — an instrument, not a form */}
           <form
             action="/discover"
-            className="card ticks mt-9 flex max-w-xl flex-col gap-2 p-2 shadow-lg rise sm:flex-row sm:items-center"
-            style={{ animationDelay: "200ms" }}
+            className="card ticks mt-9 flex max-w-xl flex-col gap-2 p-2 shadow-lg rise-hero sm:flex-row sm:items-center"
+            style={{ animationDelay: "640ms" }}
           >
             <label htmlFor="q" className="sr-only">
               Village or tehsil
@@ -155,8 +155,8 @@ export default async function Home() {
 
           {/* Live readout strip */}
           <dl
-            className="mt-10 flex flex-wrap items-end gap-x-10 gap-y-5 rise"
-            style={{ animationDelay: "260ms" }}
+            className="mt-10 flex flex-wrap items-end gap-x-10 gap-y-5 rise-hero"
+            style={{ animationDelay: "780ms" }}
           >
             {[
               { k: "Parcels listed", v: String(all.length) },

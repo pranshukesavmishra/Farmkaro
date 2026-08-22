@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BrandMark } from "./brand-mark";
+import { HeaderNav } from "./header-nav";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
@@ -37,17 +38,7 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <nav className="hidden items-center gap-0.5 md:flex">
-          {NAV.map((n) => (
-            <Link
-              key={n.href}
-              href={n.href}
-              className="focus-ring rounded-full px-3.5 py-2 text-sm font-medium text-ink-muted transition-colors hover:bg-surface-2 hover:text-ink"
-            >
-              {n.label}
-            </Link>
-          ))}
-        </nav>
+        <HeaderNav items={NAV} />
 
         <div className="ml-auto flex items-center gap-2">
           <ThemeToggle />

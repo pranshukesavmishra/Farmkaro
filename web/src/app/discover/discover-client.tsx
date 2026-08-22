@@ -414,8 +414,9 @@ export function DiscoverClient() {
         </div>
       </div>
 
-      {/* Mobile map/list toggle */}
-      <div className="fixed bottom-5 left-1/2 z-40 -translate-x-1/2 lg:hidden">
+      {/* Mobile map/list toggle — rides above the app tab bar on phones,
+          drops to the usual corner once the tab bar yields to the header nav. */}
+      <div className="fixed bottom-[calc(88px+env(safe-area-inset-bottom))] left-1/2 z-40 -translate-x-1/2 md:bottom-5 lg:hidden">
         <div className="card flex overflow-hidden rounded-full p-1 shadow-lg">
           <button
             type="button"

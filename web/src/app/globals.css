@@ -380,6 +380,26 @@ body {
 .rise {
   animation: rise 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
+/* The hero's entrance: a longer, felt arrival — lift, settle and focus.
+   Used with staggered delays so the page composes itself line by line. */
+.rise-hero {
+  animation: rise-hero 0.95s cubic-bezier(0.19, 0.65, 0.26, 1) both;
+}
+@keyframes rise-hero {
+  from {
+    opacity: 0;
+    transform: translateY(26px);
+    filter: blur(7px);
+  }
+  60% {
+    filter: blur(0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
 .fade-in {
   animation: fade 0.5s ease both;
 }
@@ -393,10 +413,12 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .rise,
   .fade-in,
+  .rise-hero,
   .boundary-draw {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;
+    filter: none !important;
     stroke-dashoffset: 0 !important;
   }
   *,
@@ -482,6 +504,15 @@ body {
   }
 }
 
+/* ── Mobile: room for the floating tab bar ──────────────────────────────────
+   Under md the app-style tab bar floats over the bottom edge; every page
+   gets breathing room beneath its content so nothing hides behind it. */
+@media (max-width: 767px) {
+  body {
+    padding-bottom: calc(84px + env(safe-area-inset-bottom));
+  }
+}
+
 /* ── Boundary drawing: vertex handles ───────────────────────────────────────
    Each corner pops in with a ripple, so hand-placed and AI-placed dots alike
    land with the same deliberate, surveyor's rhythm. */
@@ -494,10 +525,19 @@ body {
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
   cursor: grab;
   padding: 0;
-  animation: fk-vertex-pop 0.32s cubic-bezier(0.34, 1.4, 0.5, 1) both;
+  /* backwards, not both: the dot must stay hidden through its stagger delay,
+     but release the keyframe transform afterwards so hover can scale it. */
+  animation: fk-vertex-pop 0.32s cubic-bezier(0.34, 1.4, 0.5, 1) backwards;
+}
+.fk-vertex {
+  transition: transform 0.15s ease;
+}
+.fk-vertex:hover {
+  transform: scale(1.3);
 }
 .fk-vertex:active {
   cursor: grabbing;
+  transform: scale(1.15);
 }
 .fk-vertex::after {
   content: "";
@@ -506,7 +546,44 @@ body {
   border-radius: 50%;
   border: 1.5px solid rgba(227, 190, 118, 0.85);
   animation: fk-vertex-ripple 0.55s ease-out both;
+  /* When FarmSelect AI staggers the dots in, each ripple waits for its dot. */
+  animation-delay: inherit;
   pointer-events: none;
+}
+
+/* A fine AI-traced outline has many dots; smaller handles keep it legible.
+   Every one still drags, and hover grows it back to full grabbing size. */
+.fk-vertex--fine {
+  width: 9px;
+  height: 9px;
+  border-width: 2px;
+}
+.fk-vertex--fine::after {
+  inset: -5px;
+}
+.fk-vertex--fine:hover {
+  transform: scale(1.6);
+}
+
+/* The pen tip that leads FarmSelect AI's perimeter trace. */
+.fk-trace-tip {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #f2d89a;
+  box-shadow:
+    0 0 10px 3px rgba(242, 216, 154, 0.75),
+    0 1px 2px rgba(0, 0, 0, 0.45);
+  animation: fk-tip-pulse 0.5s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes fk-tip-pulse {
+  from {
+    transform: scale(0.85);
+  }
+  to {
+    transform: scale(1.2);
+  }
 }
 @keyframes fk-vertex-pop {
   from {
@@ -545,6 +622,21 @@ body {
 @keyframes fk-dash-march {
   to {
     stroke-dashoffset: -22;
+  }
+}
+
+/* ── The scan beam over a confirmed boundary ────────────────────────────────
+   Rest position is off-shape (left of the clip), so a stilled animation shows
+   nothing; the keyframes carry it across the shape's width and beyond. */
+.fk-card-sweep {
+  animation: fk-card-sweep 3.2s linear infinite;
+}
+@keyframes fk-card-sweep {
+  from {
+    transform: translateX(0) skewX(-16deg);
+  }
+  to {
+    transform: translateX(calc(var(--fk-sw, 200px) * 1.9)) skewX(-16deg);
   }
 }
 

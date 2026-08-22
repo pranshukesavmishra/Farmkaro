@@ -141,6 +141,42 @@ describe("suggestBoundary — the whole pipeline", () => {
     expect(suggestBoundary(px, w, h, { x: 40, y: 40 })).toBeNull();
   });
 
+  it("fine detail keeps every small step the default budget must smooth over", () => {
+    const w = 200, h = 160;
+    // A staircase field: 8 treads widening downwards — ~20 true corners.
+    const rects = Array.from({ length: 8 }, (_, i) => ({
+      x: 20,
+      y: 20 + i * 14,
+      w: 40 + i * 14,
+      h: 14,
+      c: GREEN,
+    }));
+    const px = image(w, h, SAND, rects);
+
+    const coarse = suggestBoundary(px, w, h, { x: 30, y: 60 })!;
+    const fine = suggestBoundary(px, w, h, { x: 30, y: 60 }, { epsilon: 1.15, maxCorners: 64 })!;
+    expect(coarse).not.toBeNull();
+    expect(fine).not.toBeNull();
+
+    // The default budget cannot hold the staircase; fine detail can.
+    expect(coarse.length).toBeLessThanOrEqual(14);
+    expect(fine.length).toBeGreaterThanOrEqual(16);
+    expect(fine.length).toBeLessThanOrEqual(64);
+
+    // And the fine outline's area matches the painted field tightly.
+    const shoelace = (poly: Pt[]) => {
+      let a = 0;
+      for (let i = 0; i < poly.length; i++) {
+        const p = poly[i], q = poly[(i + 1) % poly.length];
+        a += p.x * q.y - q.x * p.y;
+      }
+      return Math.abs(a) / 2;
+    };
+    const painted = rects.reduce((s, r) => s + r.w * r.h, 0);
+    expect(shoelace(fine)).toBeGreaterThan(painted * 0.88);
+    expect(shoelace(fine)).toBeLessThan(painted * 1.12);
+  });
+
   it("caps the corner budget", () => {
     const w = 140, h = 140;
     // A blobby cross shape — many raw contour points.

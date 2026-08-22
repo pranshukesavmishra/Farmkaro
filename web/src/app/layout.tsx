@@ -3,6 +3,7 @@ import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { AuthProvider } from "@/components/auth-context";
 import { SampleDataBanner } from "@/components/sample-data-banner";
+import { MobileTabBar } from "@/components/mobile-tabbar";
 
 export const metadata: Metadata = {
   title: {
@@ -15,9 +16,11 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#F7F6F2" },
+    { media: "(prefers-color-scheme: light)", color: "#F4F0E2" },
     { media: "(prefers-color-scheme: dark)", color: "#001A10" },
   ],
+  // Lets the floating tab bar respect the home-indicator safe area.
+  viewportFit: "cover",
 };
 
 /** Applied before paint so the first frame is already in the right theme. */
@@ -48,6 +51,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SampleDataBanner />
           <SiteHeader />
           <main>{children}</main>
+          <MobileTabBar />
         </AuthProvider>
       </body>
     </html>

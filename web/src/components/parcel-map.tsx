@@ -316,15 +316,18 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
       [0.05, 1.4, 4, 1.6],
       [0.05, 0.6, 4, 2.4],
     ];
+    // m.remove() may have run before this cleanup (unmount cleanups run in
+    // definition order) — getLayer on a dead map throws, so check style first.
+    const live = () => !!m.style && !!m.getLayer("sel-line");
     let i = 0;
     const t = setInterval(() => {
-      if (!m.getLayer("sel-line")) return;
+      if (!live()) return;
       i = (i + 1) % PHASES.length;
       m.setPaintProperty("sel-line", "line-dasharray", PHASES[i]);
     }, 90);
     return () => {
       clearInterval(t);
-      if (m.getLayer("sel-line")) m.setPaintProperty("sel-line", "line-dasharray", [4, 3]);
+      if (live()) m.setPaintProperty("sel-line", "line-dasharray", [4, 3]);
     };
   }, [ready, selectedId]);
 
