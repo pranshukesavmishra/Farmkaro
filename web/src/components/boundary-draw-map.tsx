@@ -46,10 +46,11 @@ const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", feature
  *  field, capped so every dot stays a draggable handle. */
 const FINE_DETAIL = { epsilon: 1.15, maxCorners: 64 } as const;
 
-/** Below this zoom one screen pixel is bigger than a bund — the imagery can't
- *  resolve a single field, so FarmSelect AI asks for a closer view instead of
- *  guessing. */
-const MIN_AI_ZOOM = 12.5;
+/** Below this zoom one field is only a handful of pixels — a scan there
+ *  grabs half the village as one spiky blob (seen in the wild at ~z14), so
+ *  FarmSelect AI asks for a closer view instead of guessing. z15 puts a
+ *  typical 2–10 acre field at a readable size on screen. */
+const MIN_AI_ZOOM = 15;
 
 /**
  * The reveal: a solid gold line sweeps the perimeter at uniform speed behind a
