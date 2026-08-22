@@ -64,6 +64,52 @@ export function addCometLayers(m: MlMap, srcId: string): void {
 }
 
 /**
+ * Match the light to the land beneath it. Bright imagery (sun-baked fallow,
+ * sand) washes out a pale gold streak, so there the comet turns deep forest;
+ * over dark green fields it stays gold-white. The sample is a cheap 48×48
+ * readback of the rendered canvas (requires preserveDrawingBuffer on the
+ * map), averaged to one luminance number. Call it on map idle.
+ */
+export function adaptCometToImagery(m: MlMap, srcId: string): void {
+  try {
+    if (!m.style || !m.getLayer(`${srcId}-glow`)) return;
+    const canvas = m.getCanvas();
+    const off = document.createElement("canvas");
+    off.width = 48;
+    off.height = 48;
+    const ctx = off.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return;
+    ctx.drawImage(canvas, 0, 0, 48, 48);
+    const px = ctx.getImageData(0, 0, 48, 48).data;
+    let lum = 0;
+    for (let i = 0; i < px.length; i += 4) lum += 0.299 * px[i] + 0.587 * px[i + 1] + 0.114 * px[i + 2];
+    lum /= px.length / 4;
+
+    const bright = lum > 150;
+    const glow = bright
+      ? [0, "rgba(8,46,32,0)", 0.6, "rgba(8,46,32,0.5)", 1, "rgba(16,72,50,0.9)"]
+      : [0, "rgba(242,216,154,0)", 0.6, "rgba(242,216,154,0.45)", 1, "rgba(255,244,214,0.85)"];
+    const core = bright
+      ? [0, "rgba(6,32,22,0)", 0.55, "rgba(6,32,22,0.45)", 1, "rgba(3,20,14,0.98)"]
+      : [0, "rgba(255,255,255,0)", 0.55, "rgba(255,255,255,0.4)", 1, "rgba(255,255,255,0.98)"];
+    m.setPaintProperty(`${srcId}-glow`, "line-gradient", [
+      "interpolate",
+      ["linear"],
+      ["line-progress"],
+      ...glow,
+    ]);
+    m.setPaintProperty(`${srcId}-core`, "line-gradient", [
+      "interpolate",
+      ["linear"],
+      ["line-progress"],
+      ...core,
+    ]);
+  } catch {
+    /* canvas unreadable (no preserveDrawingBuffer) — keep the gold default */
+  }
+}
+
+/**
  * Start the orbit. `getRing` returns the current boundary as an UNCLOSED ring
  * (or null to hide the light); `isPaused` hides it without losing its place.
  * Returns a stop() that also clears the source. Safe against the map being
@@ -75,7 +121,7 @@ export function startCometOrbit(
   getRing: () => number[][] | null,
   isPaused?: () => boolean,
 ): () => void {
-  const SPEED = 105; // px/second along the perimeter — a calm, steady lap
+  const SPEED = 175; // px/second along the perimeter — brisk, alive
   let raf = 0;
   let dist = 0;
   let last = performance.now();

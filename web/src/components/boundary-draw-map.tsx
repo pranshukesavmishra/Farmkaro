@@ -3,9 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { m2ToAcres, polygonAreaM2, SATELLITE_TILE_URL, type Position, type Ring } from "@/lib/geo";
+import {
+  formatDistance,
+  haversineM,
+  m2ToAcres,
+  polygonAreaM2,
+  SATELLITE_TILE_URL,
+  type Position,
+  type Ring,
+} from "@/lib/geo";
 import { suggestBoundary } from "@/lib/boundary-suggest";
-import { addCometLayers, startCometOrbit } from "@/lib/comet";
+import { adaptCometToImagery, addCometLayers, startCometOrbit } from "@/lib/comet";
 import { useLang } from "@/lib/i18n";
 import { Loader2, MousePointerClick, Redo2, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -31,6 +39,8 @@ interface Props {
 
 const SRC = "draw";
 const COMET_SRC = "draw-comet";
+const RUBBER_SRC = "rubber";
+const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
 /** FarmSelect AI reads at this detail: the outline hugs every bend of the
  *  field, capped so every dot stays a draggable handle. */
@@ -150,21 +160,46 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   // staggers the dot pops around the boundary instead of all at once.
   const staggerRef = useRef(false);
   // The map starts inert so scrolling the page never hijacks into the map.
-  // The first tap engages it (and only engages — it places no dot); a click
-  // outside or Escape puts it back to rest.
+  // The first tap engages it and places its first dot; a click outside or
+  // Escape puts it back to rest.
   const [engaged, setEngaged] = useState(false);
   const engagedRef = useRef(false);
   engagedRef.current = engaged;
+  // Imperative distance chip beside the cursor — driven straight from
+  // mousemove, no React render per pointer event.
+  const chipRef = useRef<HTMLDivElement>(null);
+  const rubberTipRef = useRef<
+    ((s: { visible: boolean; x: number; y: number; meters: number }) => void) | null
+  >(null);
+  rubberTipRef.current = (s) => {
+    const el = chipRef.current;
+    if (!el) return;
+    el.style.display = s.visible && s.meters > 0.5 ? "block" : "none";
+    if (s.visible) {
+      el.style.transform = `translate(${Math.round(s.x) + 14}px, ${Math.round(s.y) + 16}px)`;
+      el.textContent = formatDistance(s.meters);
+    }
+  };
+  // The marked area's fill — pickable from a minimal swatch row.
+  const [fillColor, setFillColor] = useState("#5FA37F");
 
   const areaAcres = points.length >= 3 ? m2ToAcres(polygonAreaM2([[...points, points[0]]])) : 0;
 
-  const emit = useCallback(
-    (pts: Position[]) => {
-      if (pts.length >= 3) onChange([...pts, pts[0]], m2ToAcres(polygonAreaM2([[...pts, pts[0]]])));
-      else onChange([], 0);
-    },
-    [onChange],
-  );
+  // Emit through a ref with a change guard: the parent's onChange is a fresh
+  // function every render, and emitting unconditionally from the render
+  // effect fed a loop — parent re-render → new callback → effect re-run →
+  // markers torn down and rebuilt → emit → parent re-render…
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
+  const lastEmitRef = useRef<string>("");
+  const emit = useCallback((pts: Position[]) => {
+    const key = pts.map((p) => `${p[0].toFixed(7)},${p[1].toFixed(7)}`).join(";");
+    if (key === lastEmitRef.current) return;
+    lastEmitRef.current = key;
+    if (pts.length >= 3)
+      onChangeRef.current([...pts, pts[0]], m2ToAcres(polygonAreaM2([[...pts, pts[0]]])));
+    else onChangeRef.current([], 0);
+  }, []);
 
   /**
    * The AI assist. Reads the imagery currently on screen, grows the field
@@ -280,6 +315,16 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             maxzoom: 18,
             attribution: "Satellite imagery © Esri",
           },
+          // Sharper close-ups: the same tile tree asked for level 19. Where
+          // the provider has 19 the blur clears; where it hasn't, the tile
+          // request fails silently and the overzoomed base below still shows.
+          "satellite-hi": {
+            type: "raster",
+            tiles: [SATELLITE_TILE_URL],
+            tileSize: 256,
+            minzoom: 18,
+            maxzoom: 19,
+          },
         },
         layers: [
           { id: "bg", type: "background", paint: { "background-color": "#001A10" } },
@@ -289,6 +334,17 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             source: "satellite",
             // A gentle grade — slightly richer greens and deeper contrast —
             // so the imagery reads premium rather than washed out.
+            paint: {
+              "raster-saturation": 0.15,
+              "raster-contrast": 0.08,
+              "raster-fade-duration": 200,
+            },
+          },
+          {
+            id: "satellite-hi",
+            type: "raster",
+            source: "satellite-hi",
+            minzoom: 18.2,
             paint: {
               "raster-saturation": 0.15,
               "raster-contrast": 0.08,
@@ -365,12 +421,27 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       });
       // The one moving element on a closed boundary: the orbiting light.
       addCometLayers(m, COMET_SRC);
+      // The drawing guide: dotted gold lines from the last and first dots to
+      // the cursor, EOSDA-style, so the next edge is visible before it lands.
+      m.addSource(RUBBER_SRC, { type: "geojson", data: EMPTY_FC });
+      m.addLayer({
+        id: "rubber-line",
+        type: "line",
+        source: RUBBER_SRC,
+        layout: { "line-cap": "round" },
+        paint: {
+          "line-color": "#F2C64B",
+          "line-width": 1.7,
+          "line-opacity": 0.9,
+          "line-dasharray": [0.1, 2.2],
+        },
+      });
       setReady(true);
     });
 
     m.on("click", (e) => {
-      // First tap wakes the map up — and is consumed by that, except for an
-      // AI seed tap, which would be wasteful to throw away.
+      // First tap wakes the map up AND places its dot — swallowing it read
+      // as "clicking does nothing".
       if (!engagedRef.current) {
         engagedRef.current = true;
         setEngaged(true);
@@ -378,7 +449,6 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         m.dragPan.enable();
         m.keyboard.enable();
         m.touchZoomRotate.enable();
-        if (aiRef.current !== "await-tap") return;
       }
       if (aiRef.current === "await-tap") {
         void runSuggestRef.current(e.point.x, e.point.y);
@@ -388,6 +458,58 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       setRedoStack([]);
       setPoints((prev) => [...prev, [e.lngLat.lng, e.lngLat.lat]]);
     });
+
+    // Double-click anywhere on the land: FarmSelect AI scans that spot
+    // directly. The double-click's own pair of click events has just dropped
+    // two stray dots — remove them before the scan takes over.
+    m.on("dblclick", (e) => {
+      e.preventDefault();
+      if (aiRef.current === "busy") return;
+      setPoints((prev) => prev.slice(0, Math.max(0, prev.length - 2)));
+      pointsRef.current = pointsRef.current.slice(0, Math.max(0, pointsRef.current.length - 2));
+      void runSuggestRef.current(e.point.x, e.point.y);
+    });
+
+    // The rubber band follows the pointer while a shape is being drawn.
+    m.on("mousemove", (e) => {
+      const src = m.getSource(RUBBER_SRC) as maplibregl.GeoJSONSource | undefined;
+      if (!src) return;
+      const pts = pointsRef.current;
+      if (!engagedRef.current || aiRef.current !== "idle" || pts.length < 1) {
+        src.setData(EMPTY_FC);
+        rubberTipRef.current?.({ visible: false, x: 0, y: 0, meters: 0 });
+        return;
+      }
+      const cursor: Position = [e.lngLat.lng, e.lngLat.lat];
+      const lines: GeoJSON.Feature[] = [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [pts[pts.length - 1], cursor] },
+        },
+      ];
+      if (pts.length >= 2) {
+        lines.push({
+          type: "Feature",
+          properties: {},
+          geometry: { type: "LineString", coordinates: [pts[0], cursor] },
+        });
+      }
+      src.setData({ type: "FeatureCollection", features: lines });
+      rubberTipRef.current?.({
+        visible: true,
+        x: e.point.x,
+        y: e.point.y,
+        meters: haversineM(pts[pts.length - 1], cursor),
+      });
+    });
+    m.on("mouseout", () => {
+      (m.getSource(RUBBER_SRC) as maplibregl.GeoJSONSource | undefined)?.setData(EMPTY_FC);
+      rubberTipRef.current?.({ visible: false, x: 0, y: 0, meters: 0 });
+    });
+
+    // The orbit light re-reads the imagery whenever the camera settles.
+    m.on("idle", () => adaptCometToImagery(m, COMET_SRC));
 
     return () => {
       m.remove();
@@ -430,6 +552,16 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       window.removeEventListener("keydown", onKey);
     };
   }, [engaged]);
+
+  // The owner's chosen area colour, applied live to the fill.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready) return;
+    if (m.getLayer("draw-fill")) {
+      m.setPaintProperty("draw-fill", "fill-color", fillColor);
+      m.setPaintProperty("draw-fill", "fill-opacity", 0.22);
+    }
+  }, [fillColor, ready]);
 
   // Once the boundary closes, exactly one thing moves: a soft light orbiting
   // the solid line — the Apple-style selection. Hidden while the AI trace
@@ -489,7 +621,16 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       el.type = "button";
       el.className = fine ? "fk-vertex fk-vertex--fine" : "fk-vertex";
       if (stagger) el.style.animationDelay = `${Math.min(i * 22, 950)}ms`;
-      el.setAttribute("aria-label", `Vertex ${i + 1} — drag to adjust`);
+      el.setAttribute("aria-label", `Vertex ${i + 1} — drag to adjust, double-tap to remove`);
+      // A click on a dot is the dot's own business — without this it bubbles
+      // to the map and drops a stray new dot at the same spot.
+      el.addEventListener("click", (ev) => ev.stopPropagation());
+      // Double-tap a dot to remove just that corner.
+      el.addEventListener("dblclick", (ev) => {
+        ev.stopPropagation();
+        setRedoStack((r) => [...r, pointsRef.current]);
+        setPoints((prev) => prev.filter((_, j) => j !== i));
+      });
       const mk = new maplibregl.Marker({ element: el, draggable: true }).setLngLat(pt).addTo(m);
       mk.on("dragend", () => {
         const ll = mk.getLngLat();
@@ -523,6 +664,34 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   return (
     <div className={cn("relative", className)}>
       <div ref={holder} className="h-full w-full rounded-xl" />
+
+      {/* Live distance from the last dot to the cursor, beside the pointer. */}
+      <div
+        ref={chipRef}
+        aria-hidden
+        className="glass pointer-events-none absolute left-0 top-0 z-10 hidden rounded-md px-2 py-0.5 font-mono text-[11px] font-medium tabular-nums text-white"
+      />
+
+      {/* Area colour — a minimal swatch row, shown once the shape closes. */}
+      {closed && ai === "idle" && (
+        <div className="pointer-events-none absolute bottom-3 left-3 z-10">
+          <div className="glass pointer-events-auto flex items-center gap-1.5 rounded-full px-2 py-1.5">
+            {["#5FA37F", "#8BC53D", "#C9A24B", "#4F86C6", "#C96F4F"].map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setFillColor(c)}
+                aria-label={`Colour the marked area ${c}`}
+                className={cn(
+                  "h-4 w-4 rounded-full transition-transform hover:scale-125",
+                  fillColor === c && "ring-2 ring-white/85 ring-offset-1 ring-offset-transparent",
+                )}
+                style={{ background: c }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       {aiNote && (
         <div className="pointer-events-none absolute inset-x-3 bottom-12 z-10 flex justify-center">

@@ -12,7 +12,7 @@ import {
   type Position,
 } from "@/lib/geo";
 import type { ParcelView } from "@/lib/types";
-import { addCometLayers, startCometOrbit } from "@/lib/comet";
+import { adaptCometToImagery, addCometLayers, startCometOrbit } from "@/lib/comet";
 import { Layers, Loader2, LocateFixed } from "lucide-react";
 
 /**
@@ -73,6 +73,15 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
             maxzoom: 18,
             attribution: "Satellite imagery © Esri, Maxar, Earthstar Geographics",
           },
+          // Level-19 close-ups where the provider has them; missing tiles
+          // fail silently and the overzoomed base below still shows.
+          "satellite-hi": {
+            type: "raster",
+            tiles: [SATELLITE_TILE_URL],
+            tileSize: 256,
+            minzoom: 18,
+            maxzoom: 19,
+          },
           // Hybrid overlays: place labels + roads on top of imagery, the same
           // composition Google's hybrid view uses. Skipped on the offline dev
           // basemap, which has no external network.
@@ -96,6 +105,17 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
               "raster-fade-duration": 200,
             },
           },
+          {
+            id: "satellite-hi",
+            type: "raster" as const,
+            source: "satellite-hi",
+            minzoom: 18.2,
+            paint: {
+              "raster-saturation": 0.15,
+              "raster-contrast": 0.08,
+              "raster-fade-duration": 200,
+            },
+          },
           ...(IS_DEV_BASEMAP
             ? []
             : [
@@ -106,9 +126,11 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
       },
       center: center ?? [79.9864, 23.1815],
       zoom: 10,
-      // Tiles stop at z18; beyond that they upscale smoothly for a closer look.
+      // Tiles stop at z18 (z19 layered where available); beyond, smooth upscale.
       maxZoom: 19.4,
       minZoom: 6,
+      // The selection light samples the rendered imagery to pick its colour.
+      canvasContextAttributes: { preserveDrawingBuffer: true },
     });
     map.current = m;
 
@@ -158,7 +180,10 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
         paint: { "line-color": "#F2D89A", "line-width": 2 },
       });
       // The one moving element on a selected boundary: the orbiting light.
+      // It re-reads the imagery whenever the camera settles, so it stays
+      // visible over both dark fields and sun-baked fallow.
       addCometLayers(m, "sel-comet");
+      m.on("idle", () => adaptCometToImagery(m, "sel-comet"));
 
       // Click on empty map deselects.
       m.on("click", () => onSelect?.(null));
