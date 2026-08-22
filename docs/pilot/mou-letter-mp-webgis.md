@@ -9,10 +9,10 @@
 ---
 
 **प्रेषक / From:**
-[FILL: Founder name], Founder
+Pranshu Kesav Mishra, Founder
 FarmKaro ([FILL: registered legal entity name])
 [FILL: registered office address, Jabalpur, MP]
-CIN/Udyam: [FILL] · Email: [FILL] · Mobile: [FILL]
+CIN/Udyam: [FILL] · Email: nextgradeinfo@gmail.com · Mobile: [FILL]
 
 **सेवा में / To:**
 आयुक्त, भू-अभिलेख एवं बंदोबस्त / The Commissioner, Land Records & Settlement
@@ -69,7 +69,7 @@ format and to demonstrate the consent and audit machinery end to end.
 सधन्यवाद / With respectful thanks,
 
 [FILL: signature]
-[FILL: Founder name], Founder — FarmKaro
+Pranshu Kesav Mishra, Founder — FarmKaro
 
 **संलग्न / Enclosures:**
 1. Company registration certificate [FILL]
@@ -80,7 +80,10 @@ format and to demonstrate the consent and audit machinery end to end.
 
 ## Despatch checklist
 
-- [ ] Verify current Commissioner's name + office address (landrecords.mp.gov.in)
+- [ ] Verify current Commissioner's name + office address (landrecords.mp.gov.in).
+      Addressing by office title alone, as drafted, is acceptable practice for official
+      correspondence — a personal name is preferred but optional, and a wrong or outdated
+      name is worse than none.
 - [ ] Consider a parallel copy to the **Collector, Jabalpur** (the pilot district) with a
       covering line — district endorsement helps the Gwalior file move
 - [ ] Registered post + email; retain both receipts
