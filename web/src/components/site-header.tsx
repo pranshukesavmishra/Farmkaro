@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BrandMark } from "./brand-mark";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
@@ -10,24 +11,14 @@ const NAV = [
   { href: "/dashboard/farmer", label: "Cultivators" },
 ];
 
-/** Survey-mark monogram: a plot outline with a centre registration point. */
+/** The brand's wheat spike, on its badge. */
 function Mark() {
   return (
     <span
       aria-hidden
-      className="relative grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-brand text-brand-ink"
+      className="grid h-8 w-8 shrink-0 place-items-center rounded-[9px] bg-brand text-brand-ink transition-transform duration-200 group-hover:-translate-y-px"
     >
-      <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
-        <path
-          d="M3 6.5 10.5 3l6.5 4v7.5L9.5 18 3 14Z"
-          stroke="currentColor"
-          strokeWidth="1.3"
-          strokeLinejoin="round"
-          strokeDasharray="2.6 2"
-          opacity="0.95"
-        />
-        <circle cx="10" cy="10.5" r="2.1" fill="currentColor" />
-      </svg>
+      <BrandMark className="h-[19px] w-[16px]" />
     </span>
   );
 }

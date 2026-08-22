@@ -128,6 +128,12 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
         paint: { "fill-color": "#C9A24B", "fill-opacity": 0.18 },
       });
       m.addLayer({
+        id: "sel-glow",
+        type: "line",
+        source: SRC_SELECTED,
+        paint: { "line-color": "#F2D89A", "line-width": 9, "line-opacity": 0.22, "line-blur": 4 },
+      });
+      m.addLayer({
         id: "sel-line-shadow",
         type: "line",
         source: SRC_SELECTED,
@@ -287,6 +293,40 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [parcelKey, ready, selectedId]);
+
+  /**
+   * The selected boundary's dash marches — the surveyor's line come alive.
+   * MapLibre cannot animate a dash offset directly, so the pattern itself is
+   * stepped through phase-shifted variants on a timer. Decorative only:
+   * reduced-motion leaves the dash still.
+   */
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !ready || !selectedId) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    // Phase-shifted renderings of the same [4,3] dash.
+    const PHASES: number[][] = [
+      [4, 3],
+      [3.2, 3, 0.8, 0],
+      [2.4, 3, 1.6, 0],
+      [1.6, 3, 2.4, 0],
+      [0.8, 3, 3.2, 0],
+      [0.05, 3, 3.95, 0],
+      [0.05, 2.2, 4, 0.8],
+      [0.05, 1.4, 4, 1.6],
+      [0.05, 0.6, 4, 2.4],
+    ];
+    let i = 0;
+    const t = setInterval(() => {
+      if (!m.getLayer("sel-line")) return;
+      i = (i + 1) % PHASES.length;
+      m.setPaintProperty("sel-line", "line-dasharray", PHASES[i]);
+    }, 90);
+    return () => {
+      clearInterval(t);
+      if (m.getLayer("sel-line")) m.setPaintProperty("sel-line", "line-dasharray", [4, 3]);
+    };
+  }, [ready, selectedId]);
 
   // Radius ring.
   useEffect(() => {

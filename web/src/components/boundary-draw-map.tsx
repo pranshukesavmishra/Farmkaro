@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { m2ToAcres, polygonAreaM2, SATELLITE_TILE_URL, type Position, type Ring } from "@/lib/geo";
-import { Redo2, Trash2, Undo2 } from "lucide-react";
+import { suggestBoundary } from "@/lib/boundary-suggest";
+import { Loader2, Redo2, Sparkles, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -37,6 +38,14 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   const [points, setPoints] = useState<Position[]>(value ?? []);
   const [redoStack, setRedoStack] = useState<Position[][]>([]);
   const [ready, setReady] = useState(false);
+  // AI assist: idle -> awaiting a tap (when no points exist yet) -> busy
+  // while it reads the imagery and animates the corners in.
+  const [ai, setAi] = useState<"idle" | "await-tap" | "busy">("idle");
+  const [aiNote, setAiNote] = useState<string | null>(null);
+  const aiRef = useRef<"idle" | "await-tap" | "busy">("idle");
+  aiRef.current = ai;
+  const pointsRef = useRef<Position[]>(points);
+  pointsRef.current = points;
 
   const areaAcres = points.length >= 3 ? m2ToAcres(polygonAreaM2([[...points, points[0]]])) : 0;
 
@@ -47,6 +56,90 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     },
     [onChange],
   );
+
+  /**
+   * The AI assist. Reads the imagery currently on screen, grows the field
+   * around the seed, and animates the suggested corners in one by one.
+   * Every result stays an owner-drawn SUGGESTION: draggable, correctable,
+   * and it enters the ladder no higher than any hand-drawn boundary.
+   */
+  const runSuggestRef = useRef(async (_cx: number, _cy: number) => {});
+  runSuggestRef.current = async (cx: number, cy: number) => {
+    const m = map.current;
+    if (!m) return;
+    setAi("busy");
+    setAiNote(null);
+    try {
+      const mapCanvas = m.getCanvas();
+      const cssW = mapCanvas.clientWidth;
+      const cssH = mapCanvas.clientHeight;
+      // Downsample for speed; the corner budget makes precision moot anyway.
+      const target = 360;
+      const scale = Math.min(1, target / Math.max(cssW, cssH));
+      const w = Math.max(1, Math.round(cssW * scale));
+      const h = Math.max(1, Math.round(cssH * scale));
+      const off = document.createElement("canvas");
+      off.width = w;
+      off.height = h;
+      const ctx = off.getContext("2d", { willReadFrequently: true })!;
+      ctx.drawImage(mapCanvas, 0, 0, w, h);
+      const rgba = ctx.getImageData(0, 0, w, h).data;
+
+      const seed = { x: Math.round(cx * scale), y: Math.round(cy * scale) };
+      const poly = suggestBoundary(rgba, w, h, seed);
+      if (!poly) {
+        setAi("idle");
+        setAiNote(
+          "Couldn't read a clear field there — tap nearer the middle of your field, or keep drawing by hand.",
+        );
+        return;
+      }
+
+      // Pixel path -> geographic corners.
+      const ring: Position[] = poly.map((p) => {
+        const ll = m.unproject([p.x / scale, p.y / scale]);
+        return [ll.lng, ll.lat];
+      });
+
+      // Animate the corners dropping in, dot by dot, like a careful hand.
+      const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setRedoStack(pointsRef.current.length ? [pointsRef.current] : []);
+      if (reduced) {
+        setPoints(ring);
+      } else {
+        setPoints([]);
+        for (let i = 0; i < ring.length; i++) {
+          await new Promise((r) => setTimeout(r, i === 0 ? 120 : 90));
+          setPoints(ring.slice(0, i + 1));
+        }
+      }
+      setAi("idle");
+      setAiNote(
+        "AI suggestion read from the imagery — drag any corner to correct it. It stays owner-drawn until FarmKaro walks the boundary.",
+      );
+    } catch {
+      setAi("idle");
+      setAiNote("Could not read the imagery here. Please draw the corners by hand.");
+    }
+  };
+
+  /** Entry point from the toolbar button. */
+  function startSuggest() {
+    if (ai === "busy") return;
+    setAiNote(null);
+    const m = map.current;
+    const pts = pointsRef.current;
+    if (m && pts.length >= 1) {
+      // The person has begun marking — seed from the middle of their dots.
+      const lng = pts.reduce((s, p) => s + p[0], 0) / pts.length;
+      const lat = pts.reduce((s, p) => s + p[1], 0) / pts.length;
+      const px = m.project([lng, lat]);
+      void runSuggestRef.current(px.x, px.y);
+    } else {
+      setAi("await-tap");
+      setAiNote("Tap once inside your field and the AI will mark it for you.");
+    }
+  }
 
   // --- map bootstrap ---------------------------------------------------------
   useEffect(() => {
@@ -74,6 +167,8 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       zoom,
       maxZoom: 18,
       doubleClickZoom: false,
+      // The AI assist reads the rendered imagery back out of the canvas.
+      canvasContextAttributes: { preserveDrawingBuffer: true },
     });
     map.current = m;
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
@@ -110,6 +205,11 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     });
 
     m.on("click", (e) => {
+      if (aiRef.current === "await-tap") {
+        void runSuggestRef.current(e.point.x, e.point.y);
+        return;
+      }
+      if (aiRef.current === "busy") return;
       setRedoStack([]);
       setPoints((prev) => [...prev, [e.lngLat.lng, e.lngLat.lat]]);
     });
@@ -156,9 +256,8 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     markers.current = points.map((pt, i) => {
       const el = document.createElement("button");
       el.type = "button";
+      el.className = "fk-vertex";
       el.setAttribute("aria-label", `Vertex ${i + 1} — drag to adjust`);
-      el.style.cssText =
-        "width:14px;height:14px;border-radius:50%;background:#fff;border:2.5px solid #1B6B47;box-shadow:0 1px 4px rgba(0,0,0,.5);cursor:grab;padding:0";
       const mk = new maplibregl.Marker({ element: el, draggable: true }).setLngLat(pt).addTo(m);
       mk.on("dragend", () => {
         const ll = mk.getLngLat();
@@ -193,6 +292,17 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     <div className={cn("relative", className)}>
       <div ref={holder} className="h-full w-full rounded-xl" />
 
+      {aiNote && (
+        <div className="pointer-events-none absolute inset-x-3 bottom-12 z-10 flex justify-center">
+          <p
+            className="glass max-w-[34rem] rounded-xl px-3.5 py-2 text-center text-[12px] leading-relaxed text-white/90"
+            aria-live="polite"
+          >
+            {aiNote}
+          </p>
+        </div>
+      )}
+
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <div className="glass pointer-events-auto rounded-xl px-3 py-2">
           <p className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-white/65">
@@ -206,6 +316,25 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         </div>
 
         <div className="pointer-events-auto flex gap-1.5">
+          <button
+            type="button"
+            onClick={startSuggest}
+            disabled={ai === "busy"}
+            aria-label="AI: mark my land from the imagery"
+            title="AI: mark my land — reads the field you are marking and places the corners for you"
+            className={cn(
+              "glass focus-ring flex h-9 items-center gap-1.5 rounded-lg px-3 text-[12px] font-semibold text-white transition-transform",
+              ai === "await-tap" && "ring-2 ring-[#E3BE76]",
+              ai !== "busy" && "hover:-translate-y-px",
+            )}
+          >
+            {ai === "busy" ? (
+              <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+            ) : (
+              <Sparkles className="h-4 w-4 text-[#E3BE76]" aria-hidden />
+            )}
+            AI mark
+          </button>
           <button
             type="button"
             onClick={undo}

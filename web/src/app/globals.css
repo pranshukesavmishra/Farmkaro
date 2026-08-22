@@ -23,19 +23,19 @@
   --font-sans: "Public Sans", "Noto Sans Devanagari", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
 
-  /* Light — warm paper, for reading-heavy surfaces */
-  --canvas: #f3f2ec;
-  --canvas-2: #eae8df;
-  --surface: #ffffff;
-  --surface-2: #faf9f5;
+  /* Light — premium warm paper: pale wheat, never stark white. */
+  --canvas: #f4f0e2;
+  --canvas-2: #ebe5d1;
+  --surface: #fdfbf4;
+  --surface-2: #f7f3e6;
   --fg: #0b120e;
   /* Both greys clear WCAG AA (4.5:1) as body text on --canvas, the lightest
      surface: muted 6.6:1, faint 4.7:1. Faint is the quietest ink we ship —
      anything below it must be decoration, never words. */
   --fg-muted: #4d5850;
   --fg-faint: #656f67;
-  --line: #e0ded4;
-  --line-strong: #cbc8bb;
+  --line: #e2dcc8;
+  --line-strong: #cdc5ab;
 
   --brand: #003622;
   --brand-ink: #ffffff;
@@ -201,6 +201,9 @@ body {
   .btn:focus-visible {
     outline: 2px solid var(--brand);
     outline-offset: 2px;
+  }
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
   }
   .btn:active {
     transform: translateY(1px) scale(0.995);
@@ -476,5 +479,84 @@ body {
   .print-area .print\:hidden,
   .print-area button {
     display: none !important;
+  }
+}
+
+/* ── Boundary drawing: vertex handles ───────────────────────────────────────
+   Each corner pops in with a ripple, so hand-placed and AI-placed dots alike
+   land with the same deliberate, surveyor's rhythm. */
+.fk-vertex {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2.5px solid #1b6b47;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  cursor: grab;
+  padding: 0;
+  animation: fk-vertex-pop 0.32s cubic-bezier(0.34, 1.4, 0.5, 1) both;
+}
+.fk-vertex:active {
+  cursor: grabbing;
+}
+.fk-vertex::after {
+  content: "";
+  position: absolute;
+  inset: -7px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(227, 190, 118, 0.85);
+  animation: fk-vertex-ripple 0.55s ease-out both;
+  pointer-events: none;
+}
+@keyframes fk-vertex-pop {
+  from {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes fk-vertex-ripple {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(1.5);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fk-vertex,
+  .fk-vertex::after {
+    animation: none;
+  }
+}
+
+/* ── Confirmed boundary: the surveyor's line, alive ─────────────────────────
+   A real surveyed boundary earns a marching dash and a soft glow; the ring's
+   corners get their dots. Purely decorative motion — reduced-motion stills it. */
+.fk-boundary-dash {
+  animation: fk-dash-march 1.6s linear infinite;
+  filter: drop-shadow(0 0 3px rgba(242, 216, 154, 0.65));
+}
+@keyframes fk-dash-march {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fk-boundary-dash {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }

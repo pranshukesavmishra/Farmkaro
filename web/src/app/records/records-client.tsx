@@ -29,6 +29,7 @@ import {
   Sprout,
 } from "lucide-react";
 import { useAuth } from "@/components/auth-context";
+import { BrandMark } from "@/components/brand-mark";
 import { ParcelOverlayCard, SatelliteAttribution } from "@/components/parcel-overlay-card";
 import { KhasraScan } from "./khasra-scan";
 import { IS_STATIC } from "@/lib/flags";
@@ -347,7 +348,7 @@ export function RecordsClient() {
 
           {!result && !error && (
             <div className="card grid-paper flex min-h-[24rem] flex-col items-center justify-center px-6 py-16 text-center">
-              <MapPin className="h-8 w-8 text-ink-faint" aria-hidden />
+              <BrandMark className="h-14 w-12 text-brand opacity-90" />
               <p className="display mt-4 text-lg">Your record appears here</p>
               <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-ink-muted">
                 With its owners, area, crops, चौहद्दी and encumbrance status — and its village

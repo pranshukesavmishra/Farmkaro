@@ -140,15 +140,26 @@ export function ParcelOverlayCard({
           aria-hidden
         >
           <path d={boundaryPath} fill="rgba(27,107,71,0.16)" />
-          <path d={boundaryPath} fill="none" stroke="rgba(0,20,12,.5)" strokeWidth={3} strokeLinejoin="round" />
+          <path d={boundaryPath} fill="none" stroke="rgba(0,20,12,.5)" strokeWidth={3.2} strokeLinejoin="round" />
           <path
+            className="fk-boundary-dash"
             d={boundaryPath}
             fill="none"
-            stroke="rgba(255,255,255,.92)"
+            stroke="rgba(255,255,255,.94)"
             strokeWidth={1.75}
             strokeLinejoin="round"
             strokeDasharray="6 5"
           />
+          {/* Corner dots: the surveyed vertices themselves. */}
+          {(geometry[0] ?? []).slice(0, -1).map((pt, i) => {
+            const { x, y } = frame!.project(pt);
+            return (
+              <g key={i}>
+                <circle cx={x} cy={y} r={3.4} fill="rgba(0,20,12,.55)" />
+                <circle cx={x} cy={y} r={2.2} fill="#F2D89A" />
+              </g>
+            );
+          })}
         </svg>
       )}
 
