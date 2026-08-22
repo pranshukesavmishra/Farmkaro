@@ -12,6 +12,7 @@ import {
   type Position,
 } from "@/lib/geo";
 import type { ParcelView } from "@/lib/types";
+import { addCometLayers, startCometOrbit } from "@/lib/comet";
 import { Layers, Loader2, LocateFixed } from "lucide-react";
 
 /**
@@ -84,7 +85,17 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
         },
         layers: [
           { id: "bg", type: "background", paint: { "background-color": "#0d1a12" } },
-          { id: "satellite", type: "raster", source: "satellite" },
+          {
+            id: "satellite",
+            type: "raster",
+            source: "satellite",
+            // Gentle grade: richer greens, deeper contrast — premium imagery.
+            paint: {
+              "raster-saturation": 0.15,
+              "raster-contrast": 0.08,
+              "raster-fade-duration": 200,
+            },
+          },
           ...(IS_DEV_BASEMAP
             ? []
             : [
@@ -95,7 +106,8 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
       },
       center: center ?? [79.9864, 23.1815],
       zoom: 10,
-      maxZoom: 18,
+      // Tiles stop at z18; beyond that they upscale smoothly for a closer look.
+      maxZoom: 19.4,
       minZoom: 6,
     });
     map.current = m;
@@ -143,8 +155,10 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
         id: "sel-line",
         type: "line",
         source: SRC_SELECTED,
-        paint: { "line-color": "#F2D89A", "line-width": 2, "line-dasharray": [4, 3] },
+        paint: { "line-color": "#F2D89A", "line-width": 2 },
       });
+      // The one moving element on a selected boundary: the orbiting light.
+      addCometLayers(m, "sel-comet");
 
       // Click on empty map deselects.
       m.on("click", () => onSelect?.(null));
@@ -295,41 +309,18 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
   }, [parcelKey, ready, selectedId]);
 
   /**
-   * The selected boundary's dash marches — the surveyor's line come alive.
-   * MapLibre cannot animate a dash offset directly, so the pattern itself is
-   * stepped through phase-shifted variants on a timer. Decorative only:
-   * reduced-motion leaves the dash still.
+   * The selected boundary's single moving element: a soft light orbiting the
+   * solid line. Decorative only — reduced-motion never starts it.
    */
   useEffect(() => {
     const m = map.current;
     if (!m || !ready || !selectedId) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // Phase-shifted renderings of the same [4,3] dash.
-    const PHASES: number[][] = [
-      [4, 3],
-      [3.2, 3, 0.8, 0],
-      [2.4, 3, 1.6, 0],
-      [1.6, 3, 2.4, 0],
-      [0.8, 3, 3.2, 0],
-      [0.05, 3, 3.95, 0],
-      [0.05, 2.2, 4, 0.8],
-      [0.05, 1.4, 4, 1.6],
-      [0.05, 0.6, 4, 2.4],
-    ];
-    // m.remove() may have run before this cleanup (unmount cleanups run in
-    // definition order) — getLayer on a dead map throws, so check style first.
-    const live = () => !!m.style && !!m.getLayer("sel-line");
-    let i = 0;
-    const t = setInterval(() => {
-      if (!live()) return;
-      i = (i + 1) % PHASES.length;
-      m.setPaintProperty("sel-line", "line-dasharray", PHASES[i]);
-    }, 90);
-    return () => {
-      clearInterval(t);
-      if (live()) m.setPaintProperty("sel-line", "line-dasharray", [4, 3]);
-    };
-  }, [ready, selectedId]);
+    const ring = parcels.find((p) => p.id === selectedId)?.geometry?.[0];
+    if (!ring || ring.length < 4) return;
+    const open = ring.slice(0, -1) as number[][]; // drop the closing point
+    return startCometOrbit(m, "sel-comet", () => open);
+  }, [ready, selectedId, parcels]);
 
   // Radius ring.
   useEffect(() => {

@@ -67,23 +67,26 @@
 }
 
 .dark {
-  /* Dark — the primary canvas. Imagery glows against it. */
-  --canvas: #060d09;
-  --canvas-2: #0a1410;
-  --surface: #0e1913;
-  --surface-2: #142019;
-  --fg: #eaf0ea;
-  --fg-muted: #91a298;
-  --fg-faint: #7a8b81;
-  --line: #1b2a22;
-  --line-strong: #2a3d33;
+  /* Dark — a deep charcoal floor with a whisper of green, and cards that
+     visibly lift off it in two steps. The old palette painted floor, cards
+     and borders in the same green and everything merged into one wall;
+     depth now comes from tone, and the green lives in the accents. */
+  --canvas: #070b09;
+  --canvas-2: #0c120e;
+  --surface: #121a15;
+  --surface-2: #1a231c;
+  --fg: #eef2ed;
+  --fg-muted: #9dab9f;
+  --fg-faint: #838f85;
+  --line: #242f27;
+  --line-strong: #37453b;
 
-  --brand: #4fa37c;
+  --brand: #55ab82;
   --brand-ink: #04140d;
-  --brand-hover: #6bbd95;
+  --brand-hover: #71c49b;
   --positive: #5fd39b;
-  --gold: #d9b166;
-  --gold-soft: rgba(217, 177, 102, 0.15);
+  --gold: #ddb672;
+  --gold-soft: rgba(221, 182, 114, 0.16);
   --danger: #e0776a;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
@@ -612,37 +615,26 @@ body {
   }
 }
 
-/* ── Confirmed boundary: the surveyor's line, alive ─────────────────────────
-   A real surveyed boundary earns a marching dash and a soft glow; the ring's
-   corners get their dots. Purely decorative motion — reduced-motion stills it. */
-.fk-boundary-dash {
-  animation: fk-dash-march 1.6s linear infinite;
-  filter: drop-shadow(0 0 3px rgba(242, 216, 154, 0.65));
+/* ── Confirmed boundary: one light, orbiting ────────────────────────────────
+   The boundary is a clean solid line; its only motion is a soft blurred
+   streak lapping the perimeter (the SVG twin of the map comet). pathLength
+   on the SVG path normalises the lap to 100 dash units. Reduced-motion
+   stills the offset and hides the streak entirely. */
+.fk-comet {
+  animation: fk-comet-orbit 4.4s linear infinite;
+  filter: blur(1px) drop-shadow(0 0 5px rgba(242, 216, 154, 0.9));
+  opacity: 0.95;
 }
-@keyframes fk-dash-march {
+@keyframes fk-comet-orbit {
   to {
-    stroke-dashoffset: -22;
-  }
-}
-
-/* ── The scan beam over a confirmed boundary ────────────────────────────────
-   Rest position is off-shape (left of the clip), so a stilled animation shows
-   nothing; the keyframes carry it across the shape's width and beyond. */
-.fk-card-sweep {
-  animation: fk-card-sweep 3.2s linear infinite;
-}
-@keyframes fk-card-sweep {
-  from {
-    transform: translateX(0) skewX(-16deg);
-  }
-  to {
-    transform: translateX(calc(var(--fk-sw, 200px) * 1.9)) skewX(-16deg);
+    stroke-dashoffset: -100;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fk-boundary-dash {
+  .fk-comet {
     animation: none;
+    opacity: 0;
   }
   *,
   *::before,

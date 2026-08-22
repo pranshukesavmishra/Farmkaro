@@ -5,7 +5,8 @@ import maplibregl, { type Map as MlMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { m2ToAcres, polygonAreaM2, SATELLITE_TILE_URL, type Position, type Ring } from "@/lib/geo";
 import { suggestBoundary } from "@/lib/boundary-suggest";
-import { sweepRange, sweepSegments } from "@/lib/sweep";
+import { addCometLayers, startCometOrbit } from "@/lib/comet";
+import { useLang } from "@/lib/i18n";
 import { Loader2, MousePointerClick, Redo2, Trash2, Undo2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
@@ -29,8 +30,7 @@ interface Props {
 }
 
 const SRC = "draw";
-const SWEEP_SRC = "sweep";
-const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+const COMET_SRC = "draw-comet";
 
 /** FarmSelect AI reads at this detail: the outline hugs every bend of the
  *  field, capped so every dot stays a draggable handle. */
@@ -41,24 +41,9 @@ const FINE_DETAIL = { epsilon: 1.15, maxCorners: 64 } as const;
  *  guessing. */
 const MIN_AI_ZOOM = 12.5;
 
-/** Phase-shifted renderings of the [5,4] dash — stepped on a timer they read
- *  as the dash circulating uniformly around the boundary (MapLibre cannot
- *  animate a dash offset directly). */
-const DASH_PHASES: number[][] = [
-  [5, 4],
-  [4, 4, 1, 0],
-  [3, 4, 2, 0],
-  [2, 4, 3, 0],
-  [1, 4, 4, 0],
-  [0.05, 4, 4.95, 0],
-  [0.05, 3, 5, 1],
-  [0.05, 2, 5, 2],
-  [0.05, 1, 5, 3],
-];
-
 /**
  * The reveal: a solid gold line sweeps the perimeter at uniform speed behind a
- * glowing pen tip, then settles into the standard white dash. On-screen pixel
+ * glowing pen tip, then settles into the clean solid line. On-screen pixel
  * distances drive the interpolation so the sweep neither rushes short segments
  * nor crawls long ones. Pure decoration — reduced-motion users get the
  * boundary instantly and never enter here.
@@ -137,12 +122,14 @@ async function tracePerimeter(m: MlMap, ring: Position[]): Promise<void> {
     if (m.style && m.getLayer("draw-line")) {
       m.setPaintProperty("draw-line", "line-color", "rgba(255,255,255,.95)");
       m.setPaintProperty("draw-line", "line-width", 1.8);
-      m.setPaintProperty("draw-line", "line-dasharray", [5, 4]);
+      // The traced ring commits as a closed boundary immediately after: solid.
+      m.setPaintProperty("draw-line", "line-dasharray", [1, 0]);
     }
   }
 }
 
 export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className }: Props) {
+  const { t } = useLang();
   const holder = useRef<HTMLDivElement>(null);
   const map = useRef<MlMap | null>(null);
   const markers = useRef<maplibregl.Marker[]>(null!);
@@ -162,6 +149,12 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
   // Set just before FarmSelect AI commits its ring: the next marker render
   // staggers the dot pops around the boundary instead of all at once.
   const staggerRef = useRef(false);
+  // The map starts inert so scrolling the page never hijacks into the map.
+  // The first tap engages it (and only engages — it places no dot); a click
+  // outside or Escape puts it back to rest.
+  const [engaged, setEngaged] = useState(false);
+  const engagedRef = useRef(false);
+  engagedRef.current = engaged;
 
   const areaAcres = points.length >= 3 ? m2ToAcres(polygonAreaM2([[...points, points[0]]])) : 0;
 
@@ -290,19 +283,48 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         },
         layers: [
           { id: "bg", type: "background", paint: { "background-color": "#001A10" } },
-          { id: "satellite", type: "raster", source: "satellite" },
+          {
+            id: "satellite",
+            type: "raster",
+            source: "satellite",
+            // A gentle grade — slightly richer greens and deeper contrast —
+            // so the imagery reads premium rather than washed out.
+            paint: {
+              "raster-saturation": 0.15,
+              "raster-contrast": 0.08,
+              "raster-fade-duration": 200,
+            },
+          },
         ],
       },
       center,
       zoom,
-      maxZoom: 18,
+      // Tiles stop at z18; past that MapLibre upscales them smoothly, which
+      // still helps when tracing a small field's corners.
+      maxZoom: 19.4,
       doubleClickZoom: false,
       // The AI assist reads the rendered imagery back out of the canvas.
       canvasContextAttributes: { preserveDrawingBuffer: true },
     });
     map.current = m;
+    // Fullscreen wraps the whole widget (holder's parent), so the toolbar,
+    // area chip and notes ride along. The control's own button flips to an
+    // exit icon while fullscreen, and Escape exits natively.
+    m.addControl(
+      new maplibregl.FullscreenControl({ container: holder.current.parentElement ?? undefined }),
+      "bottom-right",
+    );
     m.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
-    m.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+    // No on-map attribution pill: every page that shows imagery renders the
+    // Esri credit line right under the map instead (SatelliteAttribution).
+
+    // Inert until engaged: no handler may steal the page scroll or a stray
+    // drag. The first click flips them all on.
+    m.scrollZoom.disable();
+    m.dragPan.disable();
+    m.keyboard.disable();
+    m.touchZoomRotate.disable();
+    m.dragRotate.disable();
 
     m.on("load", () => {
       m.addSource(SRC, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
@@ -312,15 +334,6 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         source: SRC,
         filter: ["==", "$type", "Polygon"],
         paint: { "fill-color": "#5FA37F", "fill-opacity": 0.18 },
-      });
-      // The scan beam that glides across a closed boundary. Sits over the
-      // fill but beneath the boundary line itself.
-      m.addSource(SWEEP_SRC, { type: "geojson", data: EMPTY_FC });
-      m.addLayer({
-        id: "sweep-line",
-        type: "line",
-        source: SWEEP_SRC,
-        paint: { "line-color": "#F7EFD8", "line-width": 1.6, "line-opacity": 0.55, "line-blur": 1.4 },
       });
       // Soft gold halo beneath the line — it also lights the AI trace.
       m.addLayer({
@@ -345,13 +358,28 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
         paint: {
           "line-color": "rgba(255,255,255,.95)",
           "line-width": 1.8,
+          // Dashed while the path is open (work in progress); the render
+          // effect flips it to a clean solid line once the boundary closes.
           "line-dasharray": [5, 4],
         },
       });
+      // The one moving element on a closed boundary: the orbiting light.
+      addCometLayers(m, COMET_SRC);
       setReady(true);
     });
 
     m.on("click", (e) => {
+      // First tap wakes the map up — and is consumed by that, except for an
+      // AI seed tap, which would be wasteful to throw away.
+      if (!engagedRef.current) {
+        engagedRef.current = true;
+        setEngaged(true);
+        m.scrollZoom.enable();
+        m.dragPan.enable();
+        m.keyboard.enable();
+        m.touchZoomRotate.enable();
+        if (aiRef.current !== "await-tap") return;
+      }
       if (aiRef.current === "await-tap") {
         void runSuggestRef.current(e.point.x, e.point.y);
         return;
@@ -373,73 +401,50 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
     map.current?.easeTo({ center, zoom, duration: 700 });
   }, [center, zoom]);
 
-  // Once the boundary closes, its dash circulates uniformly — the marked land
-  // reads as selected, Apple-crop style. Paused while the AI trace owns the
-  // line, stilled entirely under reduced motion.
+  // Rest the map again when attention moves elsewhere: a click outside the
+  // widget, or Escape. (Escape inside fullscreen exits fullscreen instead —
+  // the browser fires that before this handler sees a fullscreenElement.)
+  useEffect(() => {
+    if (!engaged) return;
+    const disengage = () => {
+      const m = map.current;
+      if (m && m.style) {
+        m.scrollZoom.disable();
+        m.dragPan.disable();
+        m.keyboard.disable();
+        m.touchZoomRotate.disable();
+      }
+      setEngaged(false);
+    };
+    const onDown = (e: PointerEvent) => {
+      const root = holder.current?.parentElement;
+      if (root && e.target instanceof Node && !root.contains(e.target)) disengage();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !document.fullscreenElement) disengage();
+    };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [engaged]);
+
+  // Once the boundary closes, exactly one thing moves: a soft light orbiting
+  // the solid line — the Apple-style selection. Hidden while the AI trace
+  // owns the line; never started under reduced motion.
   const closed = points.length >= 3;
   useEffect(() => {
     const m = map.current;
     if (!m || !ready || !closed) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    // The map may already be torn down when this cleanup runs — React runs
-    // unmount cleanups in definition order, so the bootstrap effect's
-    // m.remove() happens first. Never touch a dead map.
-    const live = () => !!m.style && !!m.getLayer("draw-line");
-    let i = 0;
-    const t = setInterval(() => {
-      if (!live() || aiRef.current === "busy") return;
-      i = (i + 1) % DASH_PHASES.length;
-      m.setPaintProperty("draw-line", "line-dasharray", DASH_PHASES[i]);
-    }, 90);
-    return () => {
-      clearInterval(t);
-      if (live()) m.setPaintProperty("draw-line", "line-dasharray", [5, 4]);
-    };
-  }, [ready, closed]);
-
-  // The scan: one soft beam of light gliding diagonally across the selected
-  // area, clipped to the boundary — recomputed per frame so it stays true
-  // through pans and zooms. Decorative only; reduced-motion never starts it.
-  useEffect(() => {
-    const m = map.current;
-    if (!m || !ready || !closed) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const live = () => !!m.style && !!m.getSource(SWEEP_SRC);
-    const n = { x: Math.SQRT1_2, y: Math.SQRT1_2 }; // 45° travel
-    const PERIOD = 3200;
-    let raf = 0;
-    const t0 = performance.now();
-    const frame = (now: number) => {
-      raf = requestAnimationFrame(frame);
-      if (!live() || aiRef.current === "busy") return;
-      const pts = pointsRef.current;
-      if (pts.length < 3) return;
-      const ringPx = pts.map((p) => m.project(p as [number, number]));
-      const { min, max } = sweepRange(ringPx, n);
-      const phase = ((now - t0) % PERIOD) / PERIOD;
-      const c = min + (max - min) * phase;
-      const segs = sweepSegments(ringPx, n, c);
-      (m.getSource(SWEEP_SRC) as maplibregl.GeoJSONSource).setData({
-        type: "Feature",
-        properties: {},
-        geometry: {
-          type: "MultiLineString",
-          coordinates: segs.map(([a, b]) => {
-            const la = m.unproject([a.x, a.y]);
-            const lb = m.unproject([b.x, b.y]);
-            return [
-              [la.lng, la.lat],
-              [lb.lng, lb.lat],
-            ];
-          }),
-        },
-      });
-    };
-    raf = requestAnimationFrame(frame);
-    return () => {
-      cancelAnimationFrame(raf);
-      if (live()) (m.getSource(SWEEP_SRC) as maplibregl.GeoJSONSource).setData(EMPTY_FC);
-    };
+    return startCometOrbit(
+      m,
+      COMET_SRC,
+      () => (pointsRef.current.length >= 3 ? pointsRef.current : null),
+      () => aiRef.current === "busy",
+    );
   }, [ready, closed]);
 
   // --- render points ---------------------------------------------------------
@@ -466,6 +471,12 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       });
     }
     src.setData({ type: "FeatureCollection", features });
+
+    // In-progress path is dashed; a closed boundary is a clean solid line
+    // (the orbiting light is its only motion).
+    if (m.getLayer("draw-line")) {
+      m.setPaintProperty("draw-line", "line-dasharray", points.length >= 3 ? [1, 0] : [5, 4]);
+    }
 
     // Vertex handles as draggable markers. A fine AI outline has many points,
     // so its dots shrink to stay legible — every one still drags.
@@ -519,7 +530,15 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             className="glass max-w-[34rem] rounded-xl px-3.5 py-2 text-center text-[12px] leading-relaxed text-white/90"
             aria-live="polite"
           >
-            {aiNote}
+            {t(aiNote)}
+          </p>
+        </div>
+      )}
+
+      {!engaged && !aiNote && (
+        <div className="pointer-events-none absolute inset-x-3 bottom-12 z-10 flex justify-center">
+          <p className="glass animate-fade-up rounded-full px-3.5 py-1.5 text-center text-[12px] text-white/85">
+            {t("Tap the map once to start moving and marking")}
           </p>
         </div>
       )}
@@ -527,12 +546,12 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
       <div className="pointer-events-none absolute inset-x-3 top-3 flex items-start justify-between gap-2">
         <div className="glass pointer-events-auto rounded-xl px-3 py-2">
           <p className="text-[10.5px] font-medium uppercase tracking-[0.09em] text-white/65">
-            {points.length < 3 ? "Tap the corners of your field" : "Estimated area"}
+            {points.length < 3 ? t("Tap the corners of your field") : t("Estimated area")}
           </p>
           <p className="font-mono text-[17px] font-semibold tabular-nums text-white">
             {points.length < 3
-              ? `${points.length} point${points.length === 1 ? "" : "s"} placed`
-              : `${areaAcres.toFixed(2)} acres`}
+              ? `${points.length} ${t(points.length === 1 ? "point placed" : "points placed")}`
+              : `${areaAcres.toFixed(2)} ${t("acres")}`}
           </p>
         </div>
 
@@ -560,8 +579,8 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             type="button"
             onClick={undo}
             disabled={!points.length}
-            aria-label="Undo last point"
-            title="Undo last point"
+            aria-label={t("Undo last point")}
+            title={t("Undo last point")}
             className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white transition-transform hover:enabled:-translate-y-px disabled:opacity-40"
           >
             <Undo2 className="h-4 w-4" />
@@ -570,8 +589,8 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             type="button"
             onClick={redo}
             disabled={!redoStack.length}
-            aria-label="Redo"
-            title="Redo"
+            aria-label={t("Redo")}
+            title={t("Redo")}
             className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white transition-transform hover:enabled:-translate-y-px disabled:opacity-40"
           >
             <Redo2 className="h-4 w-4" />
@@ -580,8 +599,8 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             type="button"
             onClick={clear}
             disabled={!points.length}
-            aria-label="Clear boundary"
-            title="Clear boundary"
+            aria-label={t("Clear boundary")}
+            title={t("Clear boundary")}
             className="glass focus-ring grid h-9 w-9 place-items-center rounded-lg text-white transition-transform hover:enabled:-translate-y-px disabled:opacity-40"
           >
             <Trash2 className="h-4 w-4" />

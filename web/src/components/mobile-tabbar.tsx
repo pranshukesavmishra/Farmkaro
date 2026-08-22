@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { CirclePlus, Compass, House, LayoutDashboard, ScrollText } from "lucide-react";
+import { useLang } from "@/lib/i18n";
 import { cn } from "@/lib/cn";
 
 const TABS = [
@@ -21,6 +22,7 @@ const TABS = [
 export function MobileTabBar() {
   const raw = usePathname() ?? "";
   const path = raw.replace(/\/$/, "") || "/";
+  const { t: tr } = useLang();
   return (
     <div
       className="fixed inset-x-0 bottom-0 z-40 md:hidden"
@@ -58,7 +60,7 @@ export function MobileTabBar() {
                 />
               </span>
               <span className={cn("text-[9.5px] leading-none tracking-wide", active ? "font-semibold" : "font-medium")}>
-                {t.label}
+                {tr(t.label)}
               </span>
             </Link>
           );

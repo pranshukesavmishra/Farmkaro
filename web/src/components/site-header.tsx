@@ -1,6 +1,10 @@
+"use client";
+
 import Link from "next/link";
+import { useLang } from "@/lib/i18n";
 import { BrandMark } from "./brand-mark";
 import { HeaderNav } from "./header-nav";
+import { LanguageToggle } from "./language-toggle";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 
@@ -25,6 +29,7 @@ function Mark() {
 }
 
 export function SiteHeader() {
+  const { t } = useLang();
   return (
     <header className="sticky top-0 z-40 border-b border-line bg-[color-mix(in_srgb,var(--canvas)_86%,transparent)] backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-shell items-center gap-7 px-4 sm:px-6">
@@ -33,18 +38,19 @@ export function SiteHeader() {
           <span className="flex flex-col leading-none">
             <span className="display text-[17px] font-semibold tracking-tight">FarmKaro</span>
             <span className="mt-[3px] font-mono text-[9.5px] uppercase tracking-[0.16em] text-ink-faint">
-              Jabalpur pilot
+              {t("Jabalpur pilot")}
             </span>
           </span>
         </Link>
 
-        <HeaderNav items={NAV} />
+        <HeaderNav items={NAV.map((n) => ({ ...n, label: t(n.label) }))} />
 
         <div className="ml-auto flex items-center gap-2">
+          <LanguageToggle />
           <ThemeToggle />
           <UserMenu />
           <Link href="/discover" className="btn btn-primary hidden sm:inline-flex">
-            Find farmland
+            {t("Find farmland")}
           </Link>
         </div>
       </div>

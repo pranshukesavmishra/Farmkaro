@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SiteHeader } from "@/components/site-header";
 import { AuthProvider } from "@/components/auth-context";
+import { LangProvider } from "@/lib/i18n";
 import { SampleDataBanner } from "@/components/sample-data-banner";
 import { MobileTabBar } from "@/components/mobile-tabbar";
 
@@ -47,12 +48,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
       </head>
       <body className="min-h-screen antialiased">
-        <AuthProvider>
-          <SampleDataBanner />
-          <SiteHeader />
-          <main>{children}</main>
-          <MobileTabBar />
-        </AuthProvider>
+        <LangProvider>
+          <AuthProvider>
+            <SampleDataBanner />
+            <SiteHeader />
+            <main>{children}</main>
+            <MobileTabBar />
+          </AuthProvider>
+        </LangProvider>
       </body>
     </html>
   );

@@ -29,6 +29,7 @@ import { formatAcres, m2ToAcres, polygonAreaM2, type Position, type Ring } from 
 import { WATER_LABEL, ROAD_LABEL, type RoadAccess, type WaterSource } from "@/lib/types";
 import { VerificationDisclaimer } from "@/components/verification";
 import { cn } from "@/lib/cn";
+import { useLang } from "@/lib/i18n";
 
 const BoundaryDrawMap = dynamic(
   () => import("@/components/boundary-draw-map").then((m) => m.BoundaryDrawMap),
@@ -193,6 +194,7 @@ function StepHead({
   icon: React.ReactNode;
   action?: React.ReactNode;
 }) {
+  const { t } = useLang();
   return (
     <header className="mb-8 flex flex-wrap items-start justify-between gap-4">
       <div>
@@ -201,10 +203,10 @@ function StepHead({
             {icon}
           </span>
           <p className="eyebrow">
-            Step {pad2(index + 1)} · {STEPS[index]}
+            {t("Step")} {pad2(index + 1)} · {t(STEPS[index])}
           </p>
         </div>
-        <h2 className="display mt-4 text-xl">{title}</h2>
+        <h2 className="display mt-4 text-xl">{t(title)}</h2>
         {blurb && <p className="mt-3 max-w-prose text-sm leading-relaxed text-ink-muted">{blurb}</p>}
       </div>
       {action}
@@ -231,6 +233,7 @@ function Fact({ label, value, mono = true }: { label: string; value: string; mon
 }
 
 export function ListLandWizard() {
+  const { t } = useLang();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState<FormState>(initial);
   const [submitted, setSubmitted] = useState(false);
@@ -513,7 +516,9 @@ export function ListLandWizard() {
               </FactGrid>
             </div>
 
-            {form.boundary.length >= 4 && <SatelliteAttribution className="mt-3" />}
+            {/* Always shown: the on-map attribution pill was removed, so this
+                line is the imagery credit for the draw map. */}
+            <SatelliteAttribution className="mt-3" />
           </div>
         </div>
 
@@ -721,6 +726,9 @@ export function ListLandWizard() {
                   <Fact label="Boundary source" value="Owner-drawn" mono={false} />
                 </FactGrid>
               </div>
+              {/* The imagery credit for the draw map — its on-map pill was
+                  removed, so this line carries the required attribution. */}
+              <SatelliteAttribution className="mt-3" />
             </div>
           )}
 
@@ -1181,13 +1189,13 @@ export function ListLandWizard() {
             disabled={step === 0}
             className="btn btn-ghost"
           >
-            <ChevronLeft className="h-4 w-4" aria-hidden /> Back
+            <ChevronLeft className="h-4 w-4" aria-hidden /> {t("Back")}
           </button>
           <div className="flex items-center gap-4">
             {!canNext && (
               <span className="hidden items-center gap-1.5 text-xs text-ink-faint sm:flex">
                 <Info className="h-3.5 w-3.5" aria-hidden />
-                {step === 1 ? "Place at least 3 corners to continue" : "Fill the required fields"}
+                {t(step === 1 ? "Place at least 3 corners to continue" : "Fill the required fields")}
               </span>
             )}
             {step < STEPS.length - 1 ? (
@@ -1197,7 +1205,7 @@ export function ListLandWizard() {
                 disabled={!canNext}
                 className="btn btn-primary px-6 py-3"
               >
-                Continue <ChevronRight className="h-4 w-4" aria-hidden />
+                {t("Continue")} <ChevronRight className="h-4 w-4" aria-hidden />
               </button>
             ) : (
               <button
@@ -1206,7 +1214,7 @@ export function ListLandWizard() {
                 disabled={!canNext}
                 className="btn btn-primary px-6 py-3"
               >
-                Review &amp; send <ChevronRight className="h-4 w-4" aria-hidden />
+                {t("Review & send")} <ChevronRight className="h-4 w-4" aria-hidden />
               </button>
             )}
           </div>
