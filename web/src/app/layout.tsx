@@ -53,8 +53,8 @@ const ORG_JSONLD = JSON.stringify({
   logo: "https://farmkaro.in/icon.svg",
   slogan: "Making it safe to lease out farmland — and making leased-in land bankable.",
   founder: [
-    { "@type": "Person", name: "Aryan Singh" },
     { "@type": "Person", name: "Pranshu Kesav Mishra" },
+    { "@type": "Person", name: "Aryan Singh" },
   ],
   areaServed: { "@type": "AdministrativeArea", name: "Jabalpur district, Madhya Pradesh, India" },
   contactPoint: {

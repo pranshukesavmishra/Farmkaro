@@ -25,18 +25,18 @@ export const metadata: Metadata = {
 
 const FOUNDERS = [
   {
+    name: "Pranshu Kesav Mishra",
+    role: "Founder",
+    photo: "/founders/pranshu.jpg",
+    initials: "PM",
+    line: "Leads product and technology — the platform, FarmSelect AI and the verification rails that keep every parcel honest.",
+  },
+  {
     name: "Aryan Singh",
     role: "Co-founder",
     photo: "/founders/aryan.jpg",
     initials: "AS",
     line: "Leads FarmKaro's direction, partnerships and the Jabalpur pilot's field operations — the on-the-ground half of a trust business.",
-  },
-  {
-    name: "Pranshu Kesav Mishra",
-    role: "Co-founder",
-    photo: "/founders/pranshu.jpg",
-    initials: "PM",
-    line: "Leads product and technology — the platform, FarmSelect AI and the verification rails that keep every parcel honest.",
   },
 ];
 
