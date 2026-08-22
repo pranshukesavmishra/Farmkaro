@@ -573,7 +573,9 @@ export function BoundaryDrawMap({ center, zoom = 15, value, onChange, className 
             ) : (
               <MousePointerClick className="h-4 w-4 text-[#E3BE76]" aria-hidden />
             )}
-            FarmSelect AI
+            <span translate="no" className="notranslate">
+              FarmSelect AI
+            </span>
           </button>
           <button
             type="button"

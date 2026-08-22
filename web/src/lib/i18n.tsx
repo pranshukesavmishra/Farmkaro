@@ -1,18 +1,25 @@
 "use client";
 
 /**
- * Built-in bilingual UI — English ⇄ हिन्दी — behind one header toggle.
+ * Bilingual UI — English ⇄ हिन्दी — behind one header toggle, in two layers.
  *
- * The dictionary is hand-written, not machine-translated, and lives in the
- * bundle: no external translation service, no network call, no third party
- * reading page content (which matters on pages that show land records).
- * `t()` falls back to the English string it was given, so an untranslated
- * corner of the product degrades to English — never to a blank.
+ * Layer 1 (instant, ours): a hand-written dictionary for the chrome and the
+ * whole drawing experience. `t()` falls back to the English string it was
+ * given, so nothing ever renders blank.
+ *
+ * Layer 2 (full coverage, Google): switching to Hindi also engages Google's
+ * page-translation engine via the standard `googtrans` cookie + widget
+ * script, which machine-translates every remaining text node on the page.
+ * Strings the dictionary already turned into Hindi are left as they are, so
+ * the two layers compose instead of fighting. If the Google script cannot
+ * load (offline, blocked), layer 1 still applies — the toggle never breaks.
+ * Text drawn on map canvases (MapLibre) is imagery, not DOM, and is outside
+ * any translator's reach.
  *
  * The choice persists in localStorage and flips <html lang> so screen
  * readers switch voices with the text.
  */
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 const HI: Record<string, string> = {
   // Chrome
@@ -83,6 +90,74 @@ interface LangCtx {
 
 const Ctx = createContext<LangCtx>({ lang: "en", toggle: () => {}, t: (s) => s });
 
+/* ── Google page translation (layer 2) ────────────────────────────────────── */
+
+const GT_SCRIPT_ID = "fk-google-translate";
+
+declare global {
+  interface Window {
+    fkGoogleTranslateInit?: () => void;
+  }
+}
+
+/** The widget's constructor, reached through a cast — `window.google` is
+ *  already globally declared (as any) by the Maps integration. */
+type TranslateElementCtor = new (
+  opts: { pageLanguage: string; autoDisplay: boolean },
+  el: string,
+) => unknown;
+
+function setGtCookie(value: string | null) {
+  const host = window.location.hostname;
+  const kill = "expires=Thu, 01 Jan 1970 00:00:00 GMT";
+  if (value === null) {
+    document.cookie = `googtrans=;path=/;${kill}`;
+    document.cookie = `googtrans=;path=/;domain=${host};${kill}`;
+    document.cookie = `googtrans=;path=/;domain=.${host};${kill}`;
+  } else {
+    document.cookie = `googtrans=${value};path=/`;
+    document.cookie = `googtrans=${value};path=/;domain=${host}`;
+  }
+}
+
+/** Engage Google's translator for this page (idempotent). The widget reads
+ *  the `googtrans` cookie at init and translates in place — no banner, no
+ *  dropdown (its host element is hidden by CSS). */
+function engageGoogleHindi(opts: { reloadIfLoaded: boolean }) {
+  setGtCookie("/en/hi");
+  if (document.getElementById(GT_SCRIPT_ID)) {
+    // Script already on the page. From a fresh toggle a reload lets it
+    // re-read the cookie; from mount (incl. React's double-run of effects
+    // in dev) we're already engaged and must NOT reload — that would loop.
+    if (opts.reloadIfLoaded) window.location.reload();
+    return;
+  }
+  window.fkGoogleTranslateInit = () => {
+    try {
+      const TE = (window as unknown as { google?: { translate?: { TranslateElement?: TranslateElementCtor } } })
+        .google?.translate?.TranslateElement;
+      if (TE) new TE({ pageLanguage: "en", autoDisplay: false }, "fk-gt-host");
+    } catch {
+      /* widget refused — dictionary layer already applied */
+    }
+  };
+  const s = document.createElement("script");
+  s.id = GT_SCRIPT_ID;
+  s.src = "https://translate.google.com/translate_a/element.js?cb=fkGoogleTranslateInit";
+  s.async = true;
+  // Unreachable (offline/blocked network)? Layer 1 has already switched the
+  // chrome to Hindi; the page simply stays partially translated.
+  s.onerror = () => {};
+  document.head.appendChild(s);
+}
+
+/** Disengage: clear the cookie and reload — the only reliable way to strip
+ *  Google's in-place DOM rewrites. */
+function disengageGoogle() {
+  setGtCookie(null);
+  window.location.reload();
+}
+
 export function LangProvider({ children }: { children: React.ReactNode }) {
   // English first for the server-rendered HTML; the stored choice applies
   // right after mount (same pattern as the theme, no hydration mismatch).
@@ -90,7 +165,11 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      if (localStorage.getItem("fk-lang") === "hi") setLang("hi");
+      if (localStorage.getItem("fk-lang") === "hi") {
+        setLang("hi");
+        // Re-engage full-page translation on every visit while Hindi is on.
+        engageGoogleHindi({ reloadIfLoaded: false });
+      }
     } catch {}
   }, []);
 
@@ -98,19 +177,31 @@ export function LangProvider({ children }: { children: React.ReactNode }) {
     document.documentElement.lang = lang;
   }, [lang]);
 
+  // Side effects live OUTSIDE the state updater: React deliberately runs
+  // updaters twice in dev to flush out impurity, and a doubled engage() saw
+  // its own script tag and reloaded the page.
+  const langRef = useRef<Lang>(lang);
+  langRef.current = lang;
   const toggle = useCallback(() => {
-    setLang((l) => {
-      const next: Lang = l === "en" ? "hi" : "en";
-      try {
-        localStorage.setItem("fk-lang", next);
-      } catch {}
-      return next;
-    });
+    const next: Lang = langRef.current === "en" ? "hi" : "en";
+    try {
+      localStorage.setItem("fk-lang", next);
+    } catch {}
+    if (next === "hi") engageGoogleHindi({ reloadIfLoaded: true });
+    else disengageGoogle();
+    setLang(next);
   }, []);
 
   const t = useCallback((s: string) => (lang === "hi" ? (HI[s] ?? s) : s), [lang]);
 
-  return <Ctx.Provider value={{ lang, toggle, t }}>{children}</Ctx.Provider>;
+  return (
+    <Ctx.Provider value={{ lang, toggle, t }}>
+      {children}
+      {/* Hidden host for Google's widget — it needs a mount point even
+          though its UI is never shown. */}
+      <div id="fk-gt-host" aria-hidden className="hidden" />
+    </Ctx.Provider>
+  );
 }
 
 export function useLang(): LangCtx {

@@ -36,7 +36,9 @@ export function SiteHeader() {
         <Link href="/" className="focus-ring group flex items-center gap-2.5">
           <Mark />
           <span className="flex flex-col leading-none">
-            <span className="display text-[17px] font-semibold tracking-tight">FarmKaro</span>
+            <span translate="no" className="notranslate display text-[17px] font-semibold tracking-tight">
+              FarmKaro
+            </span>
             <span className="mt-[3px] font-mono text-[9.5px] uppercase tracking-[0.16em] text-ink-faint">
               {t("Jabalpur pilot")}
             </span>

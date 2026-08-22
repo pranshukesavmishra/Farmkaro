@@ -644,3 +644,23 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Google page translation: engine on, chrome off ─────────────────────────
+   The language toggle drives translation through the googtrans cookie; every
+   visible piece of the widget (banner iframe, tooltip, gadget, highlight)
+   stays hidden so the site keeps its own design in both languages. */
+#fk-gt-host,
+.goog-te-gadget,
+.goog-te-banner-frame,
+#goog-gt-tt,
+.goog-te-balloon-frame,
+body > .skiptranslate {
+  display: none !important;
+}
+body {
+  top: 0 !important; /* the banner (even hidden) tries to push the page down */
+}
+font[style*="background-color"] {
+  background-color: transparent !important;
+  box-shadow: none !important; /* Google's hover highlight on translated text */
+}
