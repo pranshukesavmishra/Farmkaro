@@ -7,13 +7,63 @@ import { SampleDataBanner } from "@/components/sample-data-banner";
 import { MobileTabBar } from "@/components/mobile-tabbar";
 
 export const metadata: Metadata = {
+  // Canonicals point at the production domain from every mirror (github.io
+  // included), so Google consolidates all signals onto farmkaro.in.
+  metadataBase: new URL("https://farmkaro.in"),
   title: {
-    default: "FarmKaro — Lease farmland with confidence",
+    // The tab reads just the brand; inner pages become "About us · FarmKaro".
+    default: "FarmKaro",
     template: "%s · FarmKaro",
   },
   description:
-    "FarmKaro makes it safe to lease out farmland and makes leased-in land bankable. Real parcel boundaries, honest document status, digital leases. Jabalpur pilot district.",
+    "FarmKaro makes it safe to lease out farmland and makes leased-in land bankable. Verified parcels, honest document status, registered fixed-term leases. Jabalpur pilot district, Madhya Pradesh.",
+  applicationName: "FarmKaro",
+  keywords: [
+    "farmkaro",
+    "farmland lease India",
+    "lease farmland Jabalpur",
+    "agricultural land rent Madhya Pradesh",
+    "खेत किराये पर",
+  ],
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    siteName: "FarmKaro",
+    title: "FarmKaro",
+    description:
+      "Making it safe to lease out farmland — and making leased-in land bankable. Jabalpur pilot.",
+    url: "https://farmkaro.in",
+    images: [{ url: "/og.png", width: 1200, height: 630, alt: "FarmKaro — farmland leasing, done safely" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FarmKaro",
+    description: "Making it safe to lease out farmland — and making leased-in land bankable.",
+    images: ["/og.png"],
+  },
+  robots: { index: true, follow: true },
 };
+
+/** Structured data: who FarmKaro is, for Google's knowledge panel. */
+const ORG_JSONLD = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "FarmKaro",
+  url: "https://farmkaro.in",
+  logo: "https://farmkaro.in/icon.svg",
+  slogan: "Making it safe to lease out farmland — and making leased-in land bankable.",
+  founder: [
+    { "@type": "Person", name: "Aryan Singh" },
+    { "@type": "Person", name: "Pranshu Kesav Mishra" },
+  ],
+  areaServed: { "@type": "AdministrativeArea", name: "Jabalpur district, Madhya Pradesh, India" },
+  contactPoint: {
+    "@type": "ContactPoint",
+    contactType: "customer support",
+    email: "nextgradeinfo@gmail.com",
+    availableLanguage: ["en", "hi"],
+  },
+});
 
 export const viewport: Viewport = {
   themeColor: [
@@ -45,6 +95,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+Devanagari:wght@400;500;600&display=swap"
         />
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: ORG_JSONLD }} />
 
       </head>
       <body className="min-h-screen antialiased">

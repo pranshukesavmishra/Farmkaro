@@ -14,6 +14,7 @@ const NAV = [
   { href: "/list-land", label: "List your land" },
   { href: "/dashboard/owner", label: "Landowners" },
   { href: "/dashboard/farmer", label: "Cultivators" },
+  { href: "/about", label: "About" },
 ];
 
 /** The brand's wheat spike, on its badge. */

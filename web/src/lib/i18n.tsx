@@ -29,6 +29,7 @@ const HI: Record<string, string> = {
   Landowners: "भूस्वामी",
   Cultivators: "किसान",
   "Find farmland": "खेत खोजें",
+  About: "हमारे बारे में",
   "Jabalpur pilot": "जबलपुर पायलट",
   Home: "होम",
   "My land": "मेरी ज़मीन",
@@ -65,6 +66,10 @@ const HI: Record<string, string> = {
   "points placed": "बिंदु रखे गए",
   "Tap the map once to start moving and marking":
     "शुरू करने के लिए नक़्शे पर एक बार टैप करें",
+  "Boundary crosses itself": "सीमा खुद को काट रही है",
+  "Drag the dots apart": "बिंदुओं को खींचकर सुलझाएं",
+  "Right-click or tap the gold first dot to finish":
+    "पूरा करने के लिए राइट-क्लिक करें या सुनहरे पहले बिंदु पर टैप करें",
   "Undo last point": "पिछला बिंदु हटाएं",
   Redo: "फिर से करें",
   "Clear boundary": "सीमा साफ़ करें",

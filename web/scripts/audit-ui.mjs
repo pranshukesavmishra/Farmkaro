@@ -13,6 +13,7 @@ const ROUTES = [
   ["home", "/"],
   ["discover", "/discover"],
   ["records", "/records"],
+  ["about", "/about"],
   ["listland", "/list-land"],
   ["owner", "/dashboard/owner"],
   ["farmer", "/dashboard/farmer"],

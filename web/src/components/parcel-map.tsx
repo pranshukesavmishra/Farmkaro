@@ -13,6 +13,7 @@ import {
 } from "@/lib/geo";
 import type { ParcelView } from "@/lib/types";
 import { adaptCometToImagery, addCometLayers, startCometOrbit } from "@/lib/comet";
+import { HI_TILE_PROTOCOL, registerSharpTiles } from "@/lib/sharp-tiles";
 import { Layers, Loader2, LocateFixed } from "lucide-react";
 
 /**
@@ -59,7 +60,7 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
 
   useEffect(() => {
     if (!holder.current || map.current) return;
-
+    registerSharpTiles();
     const m = new maplibregl.Map({
       container: holder.current,
       attributionControl: false,
@@ -73,11 +74,11 @@ export function ParcelMap({ parcels, selectedId, onSelect, center, radiusKm, cla
             maxzoom: 18,
             attribution: "Satellite imagery © Esri, Maxar, Earthstar Geographics",
           },
-          // Level-19 close-ups where the provider has them; missing tiles
-          // fail silently and the overzoomed base below still shows.
+          // Level-19 close-ups where the provider has them, filtered so its
+          // grey "no data" placeholders never cover the overzoomed base.
           "satellite-hi": {
             type: "raster",
-            tiles: [SATELLITE_TILE_URL],
+            tiles: [`${HI_TILE_PROTOCOL}://${SATELLITE_TILE_URL}`],
             tileSize: 256,
             minzoom: 18,
             maxzoom: 19,

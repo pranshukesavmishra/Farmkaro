@@ -33,7 +33,9 @@
      surface: muted 6.6:1, faint 4.7:1. Faint is the quietest ink we ship —
      anything below it must be decoration, never words. */
   --fg-muted: #4d5850;
-  --fg-faint: #656f67;
+  /* Dark enough for AA (4.5:1) even on --canvas-2, the darkest paper — the
+     About page's banded sections put eyebrows directly on it. */
+  --fg-faint: #566058;
   --line: #e2dcc8;
   --line-strong: #cdc5ab;
 
@@ -552,6 +554,53 @@ body {
   /* When FarmSelect AI staggers the dots in, each ripple waits for its dot. */
   animation-delay: inherit;
   pointer-events: none;
+}
+
+/* ── 3D cards (About) ───────────────────────────────────────────────────────
+   The card leans toward the cursor; children keep their own depth. */
+.fk-tilt {
+  position: relative;
+  transform: perspective(900px);
+  transform-style: preserve-3d;
+  transition: transform 0.18s ease;
+  will-change: transform;
+}
+.fk-tilt > * {
+  transform: translateZ(0.01px); /* promote for crisp text while tilted */
+}
+
+/* Floating depth orbs behind the About hero. */
+.fk-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(70px);
+  opacity: 0.5;
+  animation: fk-orb-float 16s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+@keyframes fk-orb-float {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(4%, -7%, 0) scale(1.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fk-tilt {
+    transition: none;
+  }
+  .fk-orb {
+    animation: none;
+  }
+}
+
+/* While drawing, the first dot glows gold — tapping it closes the shape. */
+.fk-vertex--first {
+  border-color: #c9a24b;
+  box-shadow:
+    0 0 0 3px rgba(242, 216, 154, 0.45),
+    0 0 10px 2px rgba(242, 216, 154, 0.55);
 }
 
 /* A fine AI-traced outline has many dots; smaller handles keep it legible.
