@@ -53,11 +53,13 @@ const VILLAGES: { name: string; tehsil: string; at: Position }[] = [
   { name: "Barela", tehsil: "Jabalpur", at: [80.0857, 23.0961] },
   { name: "Patan", tehsil: "Patan", at: [79.6889, 23.2833] },
   { name: "Sihora", tehsil: "Sihora", at: [80.1046, 23.4869] },
-  { name: "Kundam", tehsil: "Kundam", at: [80.3234, 23.4211] },
+  { name: "Kundam", tehsil: "Kundam", at: [80.346, 23.217] },
   { name: "Bargi", tehsil: "Jabalpur", at: [79.9312, 23.0489] },
   { name: "Majholi", tehsil: "Majholi", at: [79.9045, 23.4998] },
   { name: "Shahpura", tehsil: "Shahpura", at: [79.6512, 23.1608] },
   { name: "Tilwara", tehsil: "Jabalpur", at: [79.9231, 23.1122] },
+    // Distinct from Belkheda (Patan tehsil) in the district registry — two
+  // different villages with near-identical names.
   { name: "Belkhera", tehsil: "Panagar", at: [80.0421, 23.2411] },
   { name: "Khamaria", tehsil: "Jabalpur", at: [79.9701, 23.2265] },
   { name: "Gosalpur", tehsil: "Sihora", at: [80.0512, 23.3866] },

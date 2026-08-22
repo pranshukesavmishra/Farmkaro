@@ -150,7 +150,9 @@ function makeRecord(i: number): ArchiveRecord {
     soil: SOILS[si][0],
     soilHi: SOILS[si][1],
     irrigated,
-    waterSource: irrigated ? WATER[Math.floor(r() * 4)] : WATER[4],
+    // Irrigated land draws from every irrigated source, river lift included;
+    // rainfed stays rainfed.
+    waterSource: irrigated ? [WATER[0], WATER[1], WATER[2], WATER[3], WATER[5]][Math.floor(r() * 5)] : WATER[4],
     cropKharif: KHARIF[Math.floor(r() * KHARIF.length)],
     cropRabi: RABI[Math.floor(r() * RABI.length)],
     mortgage: isMortgaged

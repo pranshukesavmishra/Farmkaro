@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { searchArchive } from "@/lib/demo-archive";
-import { route } from "@/server/api";
+import { limited, route } from "@/server/api";
 
 /**
  * The synthetic demonstration archive. Openly fictional — which is exactly
@@ -9,9 +9,16 @@ import { route } from "@/server/api";
  * client can present these rows as records of real land.
  */
 export const GET = route(async (req) => {
+  // Unauthenticated by design (the data is fictional), so it carries its own
+  // guardrails: a generous rate limit and a bounded query string.
+  await limited("archive", 120, 60_000);
   const url = new URL(req.url);
+  const rawQ = url.searchParams.get("q") ?? "";
+  if (rawQ.length > 80) {
+    return NextResponse.json({ error: "Search term too long." }, { status: 400 });
+  }
   const result = searchArchive({
-    q: url.searchParams.get("q") ?? undefined,
+    q: rawQ || undefined,
     tehsilCode: url.searchParams.get("tehsil") ?? undefined,
     village: url.searchParams.get("village") ?? undefined,
     page: Number(url.searchParams.get("page") ?? "1") || 1,

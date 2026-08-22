@@ -32,6 +32,7 @@ Individual checks are `node scripts/<file>`; `audit:ui`, `audit:mobile`,
 | lease | `verify-lease.mjs` | Offer → accept/counter/reject → every lease transition → the registration ladder, plus the guards on each |
 | messaging | `verify-messaging.mjs` | The thread an enquiry opens: both parties read and reply, a stranger gets 403, empty messages refused |
 | records | `verify-records.mjs` | Pilot record lookup by khasra/Land ID/scan; map anchored at the real village (checked from tile maths); the synthetic 15k archive searches, paginates and badges itself; a bare khata resolves nothing; wizard consent gates the fetch; no phone numbers, no owner names on browse surfaces, no government-styled certificate |
+| concurrency | `verify-concurrency.mjs` | Genuinely parallel requests: identity claims, double-accepts, competing offers, double lease transitions and OTP replay each resolve to exactly one winner (uses own-5..own-8; needs a fresh DB) |
 | ui audit | `audit-ui.mjs` | Full-page screenshots, console/page errors, and real WCAG contrast for every text node, 6 routes × 2 themes |
 | mobile | `audit-mobile.mjs` | At 390px: no sideways scroll, every tap target ≥ 24px, contrast clean, no JS errors |
 

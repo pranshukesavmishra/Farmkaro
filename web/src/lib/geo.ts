@@ -13,7 +13,11 @@ export type Position = [number, number]; // [lng, lat]
 export type Ring = Position[];
 export type PolygonCoords = Ring[]; // [outer, ...holes]
 
-export const EARTH_RADIUS_M = 6378137;
+// IUGG mean Earth radius. The equatorial 6378137 m overstated areas and
+// distances by ~0.5% at Jabalpur's latitude; the mean radius is the right
+// sphere for ST_Area-style geography maths. (Web Mercator tile maths below
+// does not use this constant.)
+export const EARTH_RADIUS_M = 6371008.8;
 export const SQ_M_PER_ACRE = 4046.8564224;
 
 const rad = (deg: number) => (deg * Math.PI) / 180;

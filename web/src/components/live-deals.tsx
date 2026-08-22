@@ -119,8 +119,20 @@ export function LiveDeals({ mode }: { mode: "owner" | "farmer" }) {
   }, []);
 
   useEffect(() => {
-    if (user && !IS_STATIC) void load();
-  }, [user, load]);
+    if (user && !IS_STATIC) {
+      void load();
+      return;
+    }
+    // Signed out (or a different account signed in): drop the previous
+    // account's activity and any dialog opened on it.
+    setEnquiries({ asLessee: [], asOwner: [] });
+    setOffers([]);
+    setLeases([]);
+    setThread(null);
+    setCountering(null);
+    setLoading(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, load]);
 
   if (IS_STATIC || !ready || !user) return null;
 
@@ -458,7 +470,7 @@ function MessageThread({
 
   async function send() {
     const body = draft.trim();
-    if (!body) return;
+    if (!body || busy) return;
     setBusy(true);
     setError(null);
     try {

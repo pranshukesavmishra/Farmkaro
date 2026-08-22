@@ -145,6 +145,16 @@ export function createOffer(
   if (isOwnerOfParcel(user, parcel)) throw new AuthError(400, "You cannot offer on your own parcel.");
   if (input.rentAnnual < 1000 || input.rentAnnual > 100_000_000) throw new AuthError(400, "Rent out of range.");
   if (input.leaseYears < 0.5 || input.leaseYears > 30) throw new AuthError(400, "Lease term out of range.");
+  if (input.startDate !== undefined && Number.isNaN(Date.parse(input.startDate)))
+    throw new AuthError(400, "Start date is not a real calendar date.");
+  // Land already under a non-terminal lease cannot take offers: accepting one
+  // would be refused anyway, so refuse honestly at the door.
+  const liveLease = db()
+    .prepare(
+      `SELECT id FROM leases WHERE parcel_id = ? AND status NOT IN ('completed','terminated') LIMIT 1`,
+    )
+    .get(parcel.id);
+  if (liveLease) throw new AuthError(409, "This parcel is already under a live lease.");
 
   const id = uuid();
   const t = now();
@@ -295,7 +305,10 @@ export function respondToOffer(
     }
     if (action === "reject") addMessage(convo, null, null, "offer_rejected");
 
-    const counterpartyId = authorIsLessee ? offer.lessee_id : parcel.owner_user_id;
+    // Notify whichever side did NOT act. The old author-based formula made
+    // withdraw notify the actor themselves, which the self-guard silenced —
+    // so the other side never learned the offer was gone.
+    const counterpartyId = user.id === offer.lessee_id ? parcel.owner_user_id : offer.lessee_id;
     if (counterpartyId && counterpartyId !== user.id) {
       notify(counterpartyId, {
         eventType: `offer_${next}`,
@@ -315,6 +328,15 @@ export function respondToOffer(
 }
 
 /* ---------- leases --------------------------------------------------------- */
+
+/**
+ * Transitions only the lessor's side (owner / Lease Desk) may perform.
+ * "signed" asserts both parties signed, "active" starts the payment
+ * schedule, and completion/termination end the tenancy — none of these is a
+ * claim one counterparty may make unilaterally. In the pilot the Lease Desk
+ * executes them with the owner; the lessee is notified at every step.
+ */
+const LESSOR_ONLY_TRANSITIONS = new Set(["signed", "active", "completed", "terminated"]);
 
 const LEASE_TRANSITIONS: Record<string, string[]> = {
   draft: ["terms_agreed"],
@@ -406,8 +428,11 @@ export function advanceLease(user: SessionUser, leaseId: string, to: string) {
   if (!lease) throw new AuthError(404, "Lease not found.");
 
   const parcel = getParcelRow(lease.parcel_id)!;
-  const party = lease.lessee_id === user.id || lease.lessor_id === user.id || isOwnerOfParcel(user, parcel);
+  const isLessorSide = lease.lessor_id === user.id || isOwnerOfParcel(user, parcel);
+  const party = lease.lessee_id === user.id || isLessorSide;
   if (!party) throw new AuthError(403, "You are not a party to this lease.");
+  if (LESSOR_ONLY_TRANSITIONS.has(to) && !isLessorSide)
+    throw new AuthError(403, "Only the landowner's side records this step; you are notified when it happens.");
 
   if (!LEASE_TRANSITIONS[lease.status]?.includes(to))
     throw new AuthError(409, `Cannot move a ${lease.status} lease to ${to}.`);
@@ -519,7 +544,9 @@ export function myLeases(user: SessionUser) {
       endDate: l.end_date,
       role: l.lessee_id === user.id ? "lessee" : "lessor",
       createsTenancyRights: false,
-      nextTransitions: LEASE_TRANSITIONS[l.status] ?? [],
+      nextTransitions: (LEASE_TRANSITIONS[l.status] ?? []).filter(
+        (t) => l.lessee_id !== user.id || !LESSOR_ONLY_TRANSITIONS.has(t),
+      ),
       events,
     };
   });
@@ -580,7 +607,9 @@ function ensureConversation(parcelId: string, lesseeId: string, ownerId: string 
     .get(parcelId, lesseeId) as { id: string; owner_id: string | null } | undefined;
   if (existing) {
     if (!existing.owner_id && ownerId)
-      db().prepare("UPDATE conversations SET owner_id = ? WHERE id = ?").run(ownerId, existing.id);
+      db()
+        .prepare("UPDATE conversations SET owner_id = ? WHERE id = ? AND owner_id IS NULL")
+        .run(ownerId, existing.id);
     return existing.id;
   }
   const id = uuid();

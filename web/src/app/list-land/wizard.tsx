@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 import { ParcelOverlayCard, SatelliteAttribution } from "@/components/parcel-overlay-card";
 import { LAND_RECORD_CONSENT_STATEMENT } from "@/lib/consent";
+import { IS_STATIC } from "@/lib/flags";
 import { JABALPUR } from "@/lib/seed";
 import { formatAcres, m2ToAcres, polygonAreaM2, type Position, type Ring } from "@/lib/geo";
 import { WATER_LABEL, ROAD_LABEL, type RoadAccess, type WaterSource } from "@/lib/types";
@@ -727,7 +728,15 @@ export function ListLandWizard() {
             <div>
               <StepHead index={2} icon={intro.icon} title={intro.title} blurb={intro.blurb} />
 
+              {IS_STATIC && (
+                <p className="card p-4 text-sm leading-relaxed text-ink-muted">
+                  The khasra-copy scanner and land-record lookup run in the pilot app — this public
+                  demo takes the details typed below.
+                </p>
+              )}
+
               {/* Hero action: read the parcel straight off the owner's own copy. */}
+              {!IS_STATIC && (
               <div
                 className="card ticks grid-paper p-5 sm:p-6"
                 style={{ backgroundColor: "color-mix(in srgb, var(--brand) 6%, var(--surface))" }}
@@ -765,7 +774,10 @@ export function ListLandWizard() {
                 </div>
               </div>
 
+              )}
+
               {/* From the record */}
+              {!IS_STATIC && (
               <section className="mt-9 max-w-2xl border-t border-line pt-7">
                 <p className="eyebrow">From the land record</p>
 
@@ -873,6 +885,7 @@ export function ListLandWizard() {
                   )}
                 </div>
               </section>
+              )}
 
               {/* Owner-stated details */}
               <section className="mt-9 max-w-2xl border-t border-line pt-7">

@@ -202,10 +202,21 @@ function paintTile(seed: number): Buffer {
   return px;
 }
 
+/**
+ * Development-only: the offline basemap exists so the app renders with no
+ * external network. A production deployment points at a real tile provider,
+ * so here it is a hard 404 — not an unauthenticated CPU sink.
+ */
+const DEV_TILES_ENABLED =
+  process.env.NODE_ENV !== "production" ||
+  (process.env.NEXT_PUBLIC_SATELLITE_TILE_URL ?? "").startsWith("/api/dev-tiles");
+
 export async function GET(
   _req: Request,
   ctx: { params: Promise<{ z: string; x: string; y: string }> },
 ) {
+  if (!DEV_TILES_ENABLED) return new Response("Not found", { status: 404 });
+
   const { z, x, y } = await ctx.params;
   const seed = (Number(z) * 73856093) ^ (Number(x) * 19349663) ^ (Number(y) * 83492791);
   const png = encodePng(paintTile(seed), SIZE, SIZE);

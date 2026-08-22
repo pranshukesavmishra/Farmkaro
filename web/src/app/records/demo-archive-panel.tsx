@@ -31,8 +31,12 @@ export function DemoArchivePanel() {
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonic request id: a slow older response must never overwrite the
+  // result of a newer query.
+  const reqSeq = useRef(0);
 
   const load = useCallback(async (query: string, t: string, p: number) => {
+    const seq = ++reqSeq.current;
     setBusy(true);
     try {
       const u = new URLSearchParams();
@@ -40,11 +44,11 @@ export function DemoArchivePanel() {
       if (t) u.set("tehsil", t);
       u.set("page", String(p));
       const res = await fetch(`/api/records/archive?${u}`);
-      if (res.ok) setData(await res.json());
+      if (res.ok && seq === reqSeq.current) setData(await res.json());
     } catch {
       /* the panel simply keeps its previous state */
     } finally {
-      setBusy(false);
+      if (seq === reqSeq.current) setBusy(false);
     }
   }, []);
 
@@ -59,11 +63,14 @@ export function DemoArchivePanel() {
     debounce.current = setTimeout(() => void load(next, tehsil, 1), 300);
   }
   function onTehsil(next: string) {
+    // A pending debounced query would fire with the OLD tehsil — cancel it.
+    if (debounce.current) clearTimeout(debounce.current);
     setTehsil(next);
     setPage(1);
     void load(q, next, 1);
   }
   function go(p: number) {
+    if (debounce.current) clearTimeout(debounce.current);
     setPage(p);
     void load(q, tehsil, p);
   }

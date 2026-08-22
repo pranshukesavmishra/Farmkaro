@@ -18,6 +18,7 @@ const CHECKS = [
   ["lease", "verify-lease.mjs", "offer to registered lease, and its guards"],
   ["messaging", "verify-messaging.mjs", "both parties can read and answer a thread"],
   ["records", "verify-records.mjs", "pilot land records: lookup, map anchor, guards"],
+  ["concurrency", "verify-concurrency.mjs", "parallel races: one winner, no duplicates"],
   ["ui audit", "audit-ui.mjs", "contrast and errors, 6 routes x 2 themes"],
   ["mobile", "audit-mobile.mjs", "overflow, tap targets and contrast at 390px"],
 ];

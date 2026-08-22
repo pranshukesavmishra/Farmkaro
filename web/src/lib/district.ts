@@ -65,7 +65,7 @@ export const REGISTRY_VILLAGES: RegistryVillage[] = [
   { name: "Adhartal", nameHi: "अधारताल", tehsilCode: "JBL-01", halka: "08/B", at: [79.9576, 23.2093] },
   { name: "Garha", nameHi: "गढ़ा", tehsilCode: "JBL-01", halka: "04/C", at: [79.8946, 23.1522] },
   { name: "Ranjhi", nameHi: "रांझी", tehsilCode: "JBL-01", halka: "19/A", at: [79.9989, 23.2131] },
-  { name: "Bargi", nameHi: "बरगी", tehsilCode: "JBL-01", halka: "33/D", at: [79.9312, 23.0489] },
+  { name: "Bargi", nameHi: "बरगी", tehsilCode: "JBL-01", halka: "33/D", at: [79.921, 22.991] },
   { name: "Maharajpur", nameHi: "महाराजपुर", tehsilCode: "JBL-01", halka: "15/B", at: [79.9018, 23.2246] },
   // JBL-02 Panagar
   { name: "Panagar", nameHi: "पनागर खास", tehsilCode: "JBL-02", halka: "01/A", at: [79.9944, 23.2884] },
@@ -85,9 +85,12 @@ export const REGISTRY_VILLAGES: RegistryVillage[] = [
   { name: "Katangi", nameHi: "कटंगी", tehsilCode: "JBL-04", halka: "21/D", at: [79.7969, 23.4364] },
   { name: "Nunsar Patan", nameHi: "नूनसार पाटन", tehsilCode: "JBL-04", halka: "10/B", at: [79.7124, 23.3187] },
   // JBL-05 Kundam
-  { name: "Kundam", nameHi: "कुंडम खास", tehsilCode: "JBL-05", halka: "06/A", at: [80.3234, 23.4211] },
+    // Kundam corrected: the earlier value (23.42N, inherited from the sample
+  // seed) sat ~23 km north of the town; Kundam is ~23.22N on the road east
+  // from Jabalpur.
+  { name: "Kundam", nameHi: "कुंडम खास", tehsilCode: "JBL-05", halka: "06/A", at: [80.346, 23.217] },
   { name: "Baghraji", nameHi: "बघराजी", tehsilCode: "JBL-05", halka: "13/C", at: [80.2224, 23.2633] },
-  { name: "Hardua", nameHi: "हरदुआ", tehsilCode: "JBL-05", halka: "20/B", at: [80.2716, 23.3391] },
+  { name: "Hardua", nameHi: "हरदुआ", tehsilCode: "JBL-05", halka: "20/B", at: [80.281, 23.198] },
   // JBL-06 Majholi
   { name: "Majholi", nameHi: "मझौली खास", tehsilCode: "JBL-06", halka: "04/B", at: [79.9045, 23.4998] },
   { name: "Indrana", nameHi: "इंद्राना", tehsilCode: "JBL-06", halka: "17/A", at: [79.9861, 23.4269] },
@@ -165,8 +168,8 @@ export const MANDI_RATES_AS_OF = "2026-08-21";
 export const MANDI_RATES: MandiRate[] = [
   { crop: "Wheat", cropHi: "गेहूँ", varieties: "Sharbati, GW-322, GW-273", mandi: "Krishi Upaj Mandi, Vijay Nagar", min: 2425, max: 3250, modal: 2680, msp: 2425, trend: 45 },
   { crop: "Gram", cropHi: "चना", varieties: "JG-14, Dollar chana", mandi: "Sihora Mandi", min: 5600, max: 7100, modal: 6250, msp: 5650, trend: 120 },
-  { crop: "Soybean", cropHi: "सोयाबीन", varieties: "JS-2034, JS-9560", mandi: "Patan Mandi", min: 4350, max: 5120, modal: 4780, msp: 4892, trend: -30 },
-  { crop: "Paddy", cropHi: "धान", varieties: "Kranti, Pusa 1121 Basmati", mandi: "Panagar Sub-Mandi", min: 2320, max: 3650, modal: 2850, msp: 2300, trend: 80 },
+  { crop: "Soybean", cropHi: "सोयाबीन", varieties: "JS-2034, JS-9560", mandi: "Patan Mandi", min: 4350, max: 5120, modal: 4780, msp: 5328, trend: -30 },
+  { crop: "Paddy", cropHi: "धान", varieties: "Kranti, Pusa 1121 Basmati", mandi: "Panagar Sub-Mandi", min: 2320, max: 3650, modal: 2850, msp: 2369, trend: 80 },
   { crop: "Green peas", cropHi: "हरा मटर", varieties: "AP-3, Golden Pea", mandi: "Shahpura Mandi", min: 3200, max: 4800, modal: 3950, msp: null, trend: 150 },
     // Mustard MSP corrected from the source table's 5650 (which duplicated the
   // gram line — RMS 2024-25's figure): the 2025-26 rabi MSP for

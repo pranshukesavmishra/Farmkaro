@@ -27,7 +27,13 @@ export function UserMenu() {
   const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!user || IS_STATIC) return;
+    // A device is shared: when the session ends or changes hands, the previous
+    // person's notifications must not linger in state.
+    if (!user || IS_STATIC) {
+      setNotifs([]);
+      setOpen(false);
+      return;
+    }
     let stop = false;
     const load = async () => {
       try {
@@ -43,7 +49,7 @@ export function UserMenu() {
       stop = true;
       clearInterval(t);
     };
-  }, [user]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!open) return;

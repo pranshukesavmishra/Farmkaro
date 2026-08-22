@@ -175,16 +175,29 @@ describe("lease lifecycle", () => {
 
   it("advances strictly in order and rejects skips", () => {
     const leaseId = freshLease();
-    expect(() => advanceLease(farmer, leaseId, "active")).toThrowError(/Cannot move/);
+    expect(() => advanceLease(owner, leaseId, "active")).toThrowError(/Cannot move/);
     advanceLease(farmer, leaseId, "terms_agreed");
     advanceLease(owner, leaseId, "agreement_generated");
-    advanceLease(farmer, leaseId, "signed");
+    advanceLease(owner, leaseId, "signed");
     const res = advanceLease(owner, leaseId, "active");
     expect(res.status).toBe("active");
     // active cannot go back to signed
     expect(() => advanceLease(owner, leaseId, "signed")).toThrowError(/Cannot move/);
     // stranger cannot touch it at any point
     expect(() => advanceLease(stranger, leaseId, "completed")).toThrowError(/not a party/);
+  });
+
+  it("the lessee cannot unilaterally record signed, active, completed or terminated", () => {
+    const leaseId = freshLease();
+    advanceLease(farmer, leaseId, "terms_agreed"); // mutual steps stay open to both
+    advanceLease(farmer, leaseId, "agreement_generated");
+    // "signed" asserts both parties signed; "active" starts the payment
+    // schedule — neither is a claim one counterparty may make alone.
+    expect(() => advanceLease(farmer, leaseId, "signed")).toThrowError(/landowner's side/);
+    advanceLease(owner, leaseId, "signed");
+    expect(() => advanceLease(farmer, leaseId, "active")).toThrowError(/landowner's side/);
+    advanceLease(owner, leaseId, "active");
+    expect(() => advanceLease(farmer, leaseId, "terminated")).toThrowError(/landowner's side/);
   });
 
   it("activation schedules a rent payment record", () => {
@@ -218,13 +231,18 @@ describe("lease lifecycle", () => {
     expect(() => setRegistrationStatus(owner, leaseId, "stamped")).not.toThrow();
   });
 
-  it("refuses a second live lease on the same parcel", () => {
+  it("land under a live lease takes no second offer, at either gate", () => {
     const p = nextParcel();
     const otherFarmer = makeUser("other"); // dedicated, so global visibility asserts stay valid
+    // An offer that races in BEFORE acceptance still cannot be accepted…
     const first = createOffer(farmer, { parcelId: p, rentAnnual: 55000, leaseYears: 3 });
+    const racer = createOffer(otherFarmer, { parcelId: p, rentAnnual: 70000, leaseYears: 3 });
     respondToOffer(owner, first.id, "accept"); // creates a live lease
-    const second = createOffer(otherFarmer, { parcelId: p, rentAnnual: 70000, leaseYears: 3 });
-    expect(() => respondToOffer(owner, second.id, "accept")).toThrowError(/live lease/);
+    expect(() => respondToOffer(owner, racer.id, "accept")).toThrowError(/live lease/);
+    // …and once the lease is live, new offers are refused at the door.
+    expect(() =>
+      createOffer(otherFarmer, { parcelId: p, rentAnnual: 80000, leaseYears: 3 }),
+    ).toThrowError(/live lease/);
   });
 
   it("myLeases scopes by party and never leaks to strangers", () => {
